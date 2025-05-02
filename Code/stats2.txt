@@ -4,6 +4,7 @@ solver time-limit = 1 minute
 ----------------------Makespan Minimzation-----------------------------
 Arrival epochs = [10, 185, 267]
 Minimized makespan: 269
+✅ Total carbon emitted: 2357.58 kg
 Job 0, Task 0 on Machine 2 → Start: 10, End: 60
 Job 0, Task 1 on Machine 1 → Start: 60, End: 110
 Job 1, Task 0 on Machine 0 → Start: 185, End: 190
