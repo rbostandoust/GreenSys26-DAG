@@ -1,0 +1,52 @@
+jobs_data = [jobs_pool[0], jobs_pool[4], jobs_pool[8]]
+Arrival epochs = [10, 185, 267]
+solver time-limit = 1 minute
+----------------------Makespan Minimzation-----------------------------
+Arrival epochs = [10, 185, 267]
+Minimized makespan: 367
+Job 0, Task 0 on Machine 2 → Start: 10, End: 11
+Job 0, Task 1 on Machine 1 → Start: 11, End: 12
+Job 1, Task 0 on Machine 0 → Start: 185, End: 190
+Job 1, Task 1 on Machine 0 → Start: 190, End: 195
+Job 2, Task 0 on Machine 1 → Start: 267, End: 317
+Job 2, Task 1 on Machine 0 → Start: 317, End: 367
+-----------------------Carbon consumption minimzation--------------------------
+horizon = 367 -> 1 x minimum makespan
+Arrival epochs = [10, 185, 267]
+✅ Total carbon emitted: 2162.58 Kg with maximum allowed makespan = 367
+Job 0, Task 0 on Machine 2 → Start: 204, End: 205
+Job 0, Task 1 on Machine 2 → Start: 205, End: 206
+Job 1, Task 0 on Machine 0 → Start: 204, End: 209
+Job 1, Task 1 on Machine 1 → Start: 209, End: 214
+Job 2, Task 0 on Machine 2 → Start: 267, End: 317
+Job 2, Task 1 on Machine 0 → Start: 317, End: 367
+
+horizon = 441 -> 1.2 x minimum makespan
+Arrival epochs = [10, 185, 267]
+✅ Total carbon emitted: 1963.67 Kg with maximum allowed makespan = 441
+Job 0, Task 0 on Machine 2 → Start: 204, End: 205
+Job 0, Task 1 on Machine 1 → Start: 205, End: 206
+Job 1, Task 0 on Machine 1 → Start: 206, End: 211
+Job 1, Task 1 on Machine 0 → Start: 211, End: 216
+Job 2, Task 0 on Machine 1 → Start: 267, End: 317
+Job 2, Task 1 on Machine 2 → Start: 391, End: 441
+
+horizon = 551 -> 1.5 x minimum makespan
+Arrival epochs = [10, 185, 267]
+✅ Total carbon emitted: 1417.08 Kg with maximum allowed makespan = 551
+Job 0, Task 0 on Machine 2 → Start: 204, End: 205
+Job 0, Task 1 on Machine 1 → Start: 205, End: 206
+Job 1, Task 0 on Machine 2 → Start: 205, End: 210
+Job 1, Task 1 on Machine 1 → Start: 210, End: 215
+Job 2, Task 0 on Machine 2 → Start: 451, End: 501
+Job 2, Task 1 on Machine 0 → Start: 501, End: 551
+
+horizon = 576 - No limit!
+Arrival epochs = [10, 185, 267]
+✅ Total carbon emitted: 1380.33 Kg with 2 days limit
+Job 0, Task 0 on Machine 2 → Start: 204, End: 205
+Job 0, Task 1 on Machine 2 → Start: 205, End: 206
+Job 1, Task 0 on Machine 1 → Start: 204, End: 209
+Job 1, Task 1 on Machine 0 → Start: 209, End: 214
+Job 2, Task 0 on Machine 2 → Start: 468, End: 518
+Job 2, Task 1 on Machine 2 → Start: 518, End: 568
