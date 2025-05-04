@@ -47,7 +47,7 @@ def generate_multiple_job_schedules(job_dict, sample_num, num_jobs, num_machines
 
     return job_schedules, all_selected_job_ids
 
-def makespan_minimizer(jobs_data, num_machines, jobs_arrival_epoch, initial_horizon):
+def makespan_minimizer(jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon):
     print(f"Arrival epochs = {jobs_arrival_epoch}")
     model = cp_model.CpModel()
 
@@ -114,32 +114,27 @@ def makespan_minimizer(jobs_data, num_machines, jobs_arrival_epoch, initial_hori
     # Output solution
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         total_carbon_consumption = 0
+        machines_status = {}
         print(f'Minimized makespan: {solver.Value(makespan)}')
         for (j, t, m), (start, end, interval, presence) in all_tasks.items():
             if solver.Value(presence):
-                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[location][solver.Value(start):solver.Value(end)]) * (epoch_in_minutes / 60)
+                if f"Server{m}" not in machines_status.keys():
+                    machines_status[f"Server{m}"] = []
+                machines_status[f"Server{m}"].append([int(jobs_id[j]), t, solver.Value(start), solver.Value(end)]) # [job, task, start, end]
         print(f"✅ Total carbon emitted: {total_carbon_consumption:.2f} g")
-        return solver.Value(makespan), "Success"
+        machines_status = dict(sorted(machines_status.items(), key=lambda item: int(item[0].replace('Server', ''))))
+        return solver.Value(makespan), "Success", machines_status
     elif status == cp_model.INFEASIBLE:
         print("❌ Problem is infeasible.")
-        return None, "Infeasible"
+        return None, "Infeasible", _
     else:
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
-        return None, "TimerInterrupt"
+        return None, "TimerInterrupt", _
 
-def carbon_aware_scheduling(jobs_data, max_allowed_makespan, minimum_makespan, makespan_activated, solver_max_timeout_in_seconds):
+def carbon_aware_scheduling(jobs_data,jobs_id, max_allowed_makespan, solver_max_timeout_in_seconds):
     model = cp_model.CpModel()
-    if makespan_activated:
-        horizon = min(max_allowed_makespan, initial_horizon)
-        if horizon == max_allowed_makespan:
-            print(f"max allowed makespan = {horizon} -> {max_allowed_makespan / minimum_makespan} x minimum makespan")
-        else:
-            print(f"max allowed makespan = {horizon / (24 * (60 // epoch_in_minutes))} day")
-    else:
-        horizon = initial_horizon
-        print(f"max allowed makespan = {horizon / (24 * (60 // epoch_in_minutes))} day")
-    print(f"Arrival epochs = {jobs_arrival_epoch}")
     all_tasks = {}
     all_machines = [[] for _ in range(num_machines)]
 
@@ -148,8 +143,8 @@ def carbon_aware_scheduling(jobs_data, max_allowed_makespan, minimum_makespan, m
         for task_id, alternatives in enumerate(job):
             for m_id, duration in alternatives:
                 suffix = f'_{job_id}_{task_id}_{m_id}'
-                start = model.NewIntVar(0, horizon, 'start' + suffix)
-                end = model.NewIntVar(0, horizon, 'end' + suffix)
+                start = model.NewIntVar(0, max_allowed_makespan, 'start' + suffix)
+                end = model.NewIntVar(0, max_allowed_makespan, 'end' + suffix)
                 presence = model.NewBoolVar('presence' + suffix)
                 interval = model.NewOptionalIntervalVar(start, duration, end, presence, 'interval' + suffix)
 
@@ -190,18 +185,17 @@ def carbon_aware_scheduling(jobs_data, max_allowed_makespan, minimum_makespan, m
         model.AddNoOverlap([interval for _, _, interval, _ in machine_tasks]) # For every pair of intervals in the list, the solver ensures that if both are present, then their execution windows do not overlap
 
     # Limiting makespan by an upper-bound
-    if makespan_activated:
-        all_ends = [end for (_, end, _, _) in all_tasks.values()]
-        makespan = model.NewIntVar(0, horizon, 'makespan')
-        model.AddMaxEquality(makespan, all_ends)
-        model.Add(makespan <= max_allowed_makespan)
+    all_ends = [end for (_, end, _, _) in all_tasks.values()]
+    makespan = model.NewIntVar(0, max_allowed_makespan, 'makespan')
+    model.AddMaxEquality(makespan, all_ends)
+    model.Add(makespan <= max_allowed_makespan)
     
     
     # Carbon-aware objective
     total_carbon_terms = []
     active_vars = []
     b_vars = []
-    for t in range(horizon):
+    for t in range(max_allowed_makespan):
         active_vars.append([])
         for m in range(num_machines):
             active = model.NewBoolVar(f'active_{t}_{m}')
@@ -243,22 +237,24 @@ def carbon_aware_scheduling(jobs_data, max_allowed_makespan, minimum_makespan, m
     # Output solution
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         total_carbon_consumption = solver.Value(total_carbon) * (epoch_in_minutes / 60)
-        if makespan_activated:
-            print(f"✅ Total carbon emitted: {total_carbon_consumption:.2f} g with maximum allowed makespan = {max_allowed_makespan}")
-        else:
-            print(f"✅ Total carbon emitted: {total_carbon_consumption:.2f} g with 1 days limit")
+        machines_status = {}
+        print(f"✅ Total carbon emitted: {total_carbon_consumption:.2f} g")
         if status == cp_model.OPTIMAL:
             print(f"✅ Solution is also optimal!")
         for (j, t, m), (start, end, _, presence) in all_tasks.items():
             if solver.Value(presence):
-                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
-        return total_carbon_consumption, "Success"
+                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                if f"Server{m}" not in machines_status.keys():
+                    machines_status[f"Server{m}"] = []
+                machines_status[f"Server{m}"].append([int(jobs_id[j]), t, solver.Value(start), solver.Value(end)]) # [job, task, start, end]
+        machines_status = dict(sorted(machines_status.items(), key=lambda item: int(item[0].replace('Server', ''))))
+        return total_carbon_consumption, "Success", machines_status
     elif status == cp_model.INFEASIBLE:
         print("❌ Problem is infeasible.")
-        return None, "Infeasible"
+        return None, "Infeasible", _
     else:
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
-        return None, "TimerInterrupt"
+        return None, "TimerInterrupt", _
 
 """
 General vars
@@ -312,31 +308,40 @@ jobs_arrival_epoch = [0 for _ in range(num_jobs)] # ever job arrives hour0 of th
 with open(f"../Data/JobPool/JobPool_{num_operations_per_job}Ops_MeanOpDur={mean_duration_per_op_in_epoch}_Epoch={epoch_in_minutes}.json", "r") as f:
     job_dict = json.load(f)
 list_jobs_data, list_job_ids = generate_multiple_job_schedules(job_dict, num_jobs = num_jobs, num_machines = num_machines, sample_num = num_instances, seed = 42)
-print(list_jobs_data[0])
-print(list_job_ids[0])
 
 """
 Running the flexible jobshop scenario for each instance
 """
 instance_num_start, instance_num_end = 0, num_instances
 candidate_makespan_slack_coeff = [1, 2, 5, 10]
+candidate_makespan_slack_coeff = [2, 1000]
 for instance_num in range(instance_num_start, instance_num_end, 1):
     # run makespan minimizer
     print(f"Running Instance {instance_num}")
-    global_minimum_makespan, solver_status = makespan_minimizer(jobs_data = list_jobs_data[instance_num], 
+    global_minimum_makespan, solver_status, servers_status = makespan_minimizer(jobs_data = list_jobs_data[instance_num],
+                                                                jobs_id = list_job_ids[instance_num],
                                                                 num_machines = num_machines,
                                                                 jobs_arrival_epoch = jobs_arrival_epoch, 
-                                                                initial_horizon = initial_horizon)
+                                                                initial_horizon = initial_horizon,)
     if solver_status != "Success":
-        continue
+        continue # Do not run carbon-aware scheduling
+    
     # carbon-aware scheduling
-    slack_coeff = 10
-    max_allowed_makespan = int(math.ceil(slack_coeff * global_minimum_makespan)) # in epoch
-    makespan_activated = False
-    carbon_consumption, solver_status = carbon_aware_scheduling(jobs_data = list_jobs_data[instance_num], 
-                                                                max_allowed_makespan = max_allowed_makespan, 
-                                                                minimum_makespan = global_minimum_makespan, 
-                                                                makespan_activated = makespan_activated, 
-                                                                solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
+    candidate_maximum_allowed_makespan = []
+    for slack_coeff in candidate_makespan_slack_coeff:
+        if int(math.ceil(slack_coeff * global_minimum_makespan)) < initial_horizon:
+            candidate_maximum_allowed_makespan.append(int(math.ceil(slack_coeff * global_minimum_makespan)))
+        else:
+            candidate_maximum_allowed_makespan.append(initial_horizon)
+            break
+    if (len(candidate_maximum_allowed_makespan) == 0 or candidate_maximum_allowed_makespan[-1] != initial_horizon):
+        candidate_maximum_allowed_makespan.append(initial_horizon)
+    for max_allowed_makespan in candidate_maximum_allowed_makespan:
+        print(f"max allowed makespan is {max_allowed_makespan}")
+        carbon_consumption, solver_status, servers_status = carbon_aware_scheduling(jobs_data = list_jobs_data[instance_num], 
+                                                                    jobs_id = list_job_ids[instance_num],
+                                                                    max_allowed_makespan = max_allowed_makespan,
+                                                                    solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
+        # break
     break
     
