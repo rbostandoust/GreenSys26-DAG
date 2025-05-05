@@ -499,7 +499,7 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
     
 # main()
 ############
-run_ver = 0
+run_ver = 7
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
