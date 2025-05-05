@@ -8,6 +8,9 @@ import json
 from ortools.sat.python import cp_model
 import math
 import os
+from datetime import datetime, timedelta
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import Manager
 
 def generate_multiple_job_schedules(job_dict, sample_num, num_jobs, num_machines, seed=42):
     """
@@ -49,6 +52,8 @@ def generate_multiple_job_schedules(job_dict, sample_num, num_jobs, num_machines
     return job_schedules, all_selected_job_ids
 
 def append_to_csv(data_list, file_path):
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
     new_df = pd.DataFrame(data_list)
 
     if os.path.exists(file_path):
@@ -129,7 +134,7 @@ def makespan_minimizer(jobs_data, jobs_id, num_machines, jobs_arrival_epoch, ini
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         total_carbon_consumption = 0
         machines_status = {}
-        print(f'Minimized makespan: {solver.Value(makespan)}')
+        # print(f'Minimized makespan: {solver.Value(makespan)}')
         for (j, t, m), (start, end, interval, presence) in all_tasks.items():
             if solver.Value(presence):
                 # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
@@ -258,7 +263,7 @@ def carbon_aware_scheduling(jobs_data,jobs_id, max_allowed_makespan, solver_max_
             print(f"✅ Solution is also optimal!")
         for (j, t, m), (start, end, _, presence) in all_tasks.items():
             if solver.Value(presence):
-                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
                 makespan_val = max(makespan_val, solver.Value(end))
@@ -272,6 +277,29 @@ def carbon_aware_scheduling(jobs_data,jobs_id, max_allowed_makespan, solver_max_
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, "TimerInterrupt", _
 
+def run_carbon_aware_task(instance_num, max_allowed_makespan, minimum_makespan, start_time, list_jobs_data, list_job_ids,
+                          initial_horizon, num_jobs, num_machines, num_operations_per_job, power,
+                          epoch_in_minutes, solver_max_timeout_in_seconds, log_dict_list_shared):
+    carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(
+        jobs_data=list_jobs_data[instance_num],
+        jobs_id=list_job_ids[instance_num],
+        max_allowed_makespan=max_allowed_makespan,
+        solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
+    )
+
+    if solver_status == "Success":
+        log = {
+            'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+            'Instance': instance_num, 'IsCarbonAware': True, 'Horizon': initial_horizon,
+            'MaxMakeSpan': max_allowed_makespan, 'MinMakeSpan': minimum_makespan, 'Makespan': makespan,
+            'CarbonConsumption(g)': round(carbon_consumption, 2),
+            'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
+            'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
+            'JobIndex': list_job_ids[instance_num]
+        }
+        for sid in range(num_machines):
+            log[f"Server{sid}"] = servers_status.get(f"Server{sid}", [])
+        log_dict_list_shared.append(log)
 """
 General vars
 """
@@ -328,66 +356,143 @@ list_jobs_data, list_job_ids = generate_multiple_job_schedules(job_dict, num_job
 """
 Running the flexible jobshop scenario for each instance
 """
-instance_num_start, instance_num_end = 0, num_instances
-candidate_makespan_slack_coeff = [1, 2, 5, 10]
-candidate_makespan_slack_coeff = [2, 1000]
-for instance_num in range(instance_num_start, instance_num_end, 1):
-    # run makespan minimizer
-    print(f"Running Instance {instance_num}")
-    global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(jobs_data = list_jobs_data[instance_num],
-                                                                jobs_id = list_job_ids[instance_num],
-                                                                num_machines = num_machines,
-                                                                jobs_arrival_epoch = jobs_arrival_epoch, 
-                                                                initial_horizon = initial_horizon,)
-    if solver_status != "Success":
-        continue # Do not run carbon-aware scheduling
-    log_dict_list = []
-    # log makespan minimizer result
-    makespan_log_dict = {'Instance': instance_num, 'IsCarbonAware': False, 'Horizon': initial_horizon,
-                         'Makespan': global_minimum_makespan, 'MaxMakeSpan': initial_horizon,
-                         'CarbonConsumption(g)': carbon_consumption,
-                         'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
-                         'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes,
-                         'JobIndex': list_job_ids[instance_num]
-                         }
-    for serverid in range(num_machines):
-        if serverid in servers_status.keys():
-            makespan_log_dict[serverid] = servers_status[serverid]
-        else:
-            makespan_log_dict[serverid] = []
-    log_dict_list.append(makespan_log_dict)
-    # carbon-aware scheduling
-    candidate_maximum_allowed_makespan = []
-    for slack_coeff in candidate_makespan_slack_coeff:
-        if int(math.ceil(slack_coeff * global_minimum_makespan)) < initial_horizon:
-            candidate_maximum_allowed_makespan.append(int(math.ceil(slack_coeff * global_minimum_makespan)))
-        else:
-            candidate_maximum_allowed_makespan.append(initial_horizon)
-            break
-    if (len(candidate_maximum_allowed_makespan) == 0 or candidate_maximum_allowed_makespan[-1] != initial_horizon):
-        candidate_maximum_allowed_makespan.append(initial_horizon)
-    for max_allowed_makespan in candidate_maximum_allowed_makespan:
-        print(f"max allowed makespan is {max_allowed_makespan}")
-        carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(jobs_data = list_jobs_data[instance_num], 
-                                                                    jobs_id = list_job_ids[instance_num],
-                                                                    max_allowed_makespan = max_allowed_makespan,
-                                                                    solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
-        if solver_status == "Success":
-            carbon_aware_log_dict = {'Instance': instance_num, 'IsCarbonAware': True, 'Horizon': initial_horizon,
-                         'Makespan': makespan, 'MaxMakeSpan': max_allowed_makespan,
-                         'CarbonConsumption(g)': carbon_consumption,
-                         'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
-                         'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes,
-                         'JobIndex': list_job_ids[instance_num]
-                         }
-            for serverid in range(num_machines):
-                if serverid in servers_status.keys():
-                    carbon_aware_log_dict[serverid] = servers_status[serverid]
-                else:
-                    carbon_aware_log_dict[serverid] = []
-            log_dict_list.append(carbon_aware_log_dict)
-        break
-    df_log = pd.DataFrame(log_dict_list)
-    df.to_csv("job_data.csv", index=False)
-    break
+def main_parallel():
+    instance_num_start, instance_num_end = 0, num_instances
+    candidate_makespan_slack_coeff = [1, 2, 5, 10]
+    candidate_makespan_slack_coeff = [2, 1000]
+    log_file_path = f"../Logs/GeneralExp/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
+    start_time = datetime.now()
     
+    manager = Manager()
+    start_time = datetime.now()
+    for instance_num in range(instance_num_start, instance_num_end):
+        print(f"Running Instance {instance_num}")
+
+        global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(
+            jobs_data=list_jobs_data[instance_num],
+            jobs_id=list_job_ids[instance_num],
+            num_machines=num_machines,
+            jobs_arrival_epoch=jobs_arrival_epoch,
+            initial_horizon=initial_horizon
+        )
+
+        if solver_status != "Success":
+            continue
+
+        log_dict_list_shared = manager.list()
+
+        # Log baseline makespan schedule
+        log = {
+            'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+            'Instance': instance_num, 'IsCarbonAware': False, 'Horizon': initial_horizon,
+            'MaxMakeSpan': initial_horizon, 'MinMakeSpan': global_minimum_makespan, 'Makespan': global_minimum_makespan,
+            'CarbonConsumption(g)': round(carbon_consumption, 2),
+            'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
+            'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
+            'JobIndex': list_job_ids[instance_num]
+        }
+        for sid in range(num_machines):
+            log[f"Server{sid}"] = servers_status.get(f"Server{sid}", [])
+        log_dict_list_shared.append(log)
+
+        candidate_maximum_allowed_makespan = []
+        for slack_coeff in candidate_makespan_slack_coeff:
+            val = int(math.ceil(slack_coeff * global_minimum_makespan))
+            if val < initial_horizon:
+                candidate_maximum_allowed_makespan.append(val)
+            else:
+                candidate_maximum_allowed_makespan.append(initial_horizon)
+                break
+        if candidate_maximum_allowed_makespan[-1] != initial_horizon:
+            candidate_maximum_allowed_makespan.append(initial_horizon)
+
+        # Parallel carbon-aware runs
+        with ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    run_carbon_aware_task,
+                    instance_num, makespan_limit, global_minimum_makespan, start_time,
+                    list_jobs_data, list_job_ids, initial_horizon,
+                    num_jobs, num_machines, num_operations_per_job,
+                    power, epoch_in_minutes, solver_max_timeout_in_seconds,
+                    log_dict_list_shared
+                )
+                for makespan_limit in candidate_maximum_allowed_makespan
+            ]
+            for future in as_completed(futures):
+                future.result()
+
+        append_to_csv(list(log_dict_list_shared), log_file_path)
+
+        if instance_num == 1:
+            break
+def main():
+    instance_num_start, instance_num_end = 0, num_instances
+    candidate_makespan_slack_coeff = [1, 2, 5, 10]
+    candidate_makespan_slack_coeff = [2, 1000]
+    log_file_path = f"../Logs/GeneralExp/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
+    start_time = datetime.now()
+    for instance_num in range(instance_num_start, instance_num_end, 1):
+        # run makespan minimizer
+        print(f"Running Instance {instance_num}")
+        global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(jobs_data = list_jobs_data[instance_num],
+                                                                    jobs_id = list_job_ids[instance_num],
+                                                                    num_machines = num_machines,
+                                                                    jobs_arrival_epoch = jobs_arrival_epoch, 
+                                                                    initial_horizon = initial_horizon,)
+        if solver_status != "Success":
+            continue # Do not run carbon-aware scheduling
+        log_dict_list = []
+        # log makespan minimizer result
+        makespan_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+                            'Instance': instance_num, 'IsCarbonAware': False, 'Horizon': initial_horizon,
+                            'MaxMakeSpan': initial_horizon, 'MinMakeSpan': global_minimum_makespan, 'Makespan': global_minimum_makespan,
+                            'CarbonConsumption(g)': round(carbon_consumption, 2),
+                            'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
+                            'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
+                            'JobIndex': list_job_ids[instance_num]
+                            }
+        for serverid in range(num_machines):
+            if f"Server{serverid}" in servers_status.keys():
+                makespan_log_dict[f"Server{serverid}"] = servers_status[f"Server{serverid}"]
+            else:
+                makespan_log_dict[f"Server{serverid}"] = []
+        log_dict_list.append(makespan_log_dict)
+        # carbon-aware scheduling
+        candidate_maximum_allowed_makespan = []
+        for slack_coeff in candidate_makespan_slack_coeff:
+            if int(math.ceil(slack_coeff * global_minimum_makespan)) < initial_horizon:
+                candidate_maximum_allowed_makespan.append(int(math.ceil(slack_coeff * global_minimum_makespan)))
+            else:
+                candidate_maximum_allowed_makespan.append(initial_horizon)
+                break
+        if (len(candidate_maximum_allowed_makespan) == 0 or candidate_maximum_allowed_makespan[-1] != initial_horizon):
+            candidate_maximum_allowed_makespan.append(initial_horizon)
+        for max_allowed_makespan in candidate_maximum_allowed_makespan:
+            print(f"max allowed makespan is {max_allowed_makespan}")
+            carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(jobs_data = list_jobs_data[instance_num], 
+                                                                        jobs_id = list_job_ids[instance_num],
+                                                                        max_allowed_makespan = max_allowed_makespan,
+                                                                        solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
+            if solver_status == "Success":
+                carbon_aware_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+                            'Instance': instance_num, 'IsCarbonAware': True, 'Horizon': initial_horizon,
+                            'MaxMakeSpan': max_allowed_makespan, 'MinMakeSpan': global_minimum_makespan, 'Makespan': makespan,
+                            'CarbonConsumption(g)': round(carbon_consumption, 2),
+                            'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
+                            'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
+                            'JobIndex': list_job_ids[instance_num]
+                            }
+                for serverid in range(num_machines):
+                    if f"Server{serverid}" in servers_status.keys():
+                        carbon_aware_log_dict[f"Server{serverid}"] = servers_status[f"Server{serverid}"]
+                    else:
+                        carbon_aware_log_dict[f"Server{serverid}"] = []
+                log_dict_list.append(carbon_aware_log_dict)
+            # break
+        append_to_csv(data_list=log_dict_list, file_path=log_file_path)
+        if (instance_num == 1):
+            break
+    
+# main()
+main_parallel()
