@@ -303,9 +303,9 @@ def run_carbon_aware_task(instance_num, max_allowed_makespan, minimum_makespan, 
 """
 General vars
 """
-epoch_in_minutes = 5
-initial_horizon = 24 * 60 // epoch_in_minutes # 1 day - This is the maximum slack
-solver_max_timeout_in_seconds = 10 * 60
+epoch_in_minutes = 15
+initial_horizon = 2 * 24 * 60 // epoch_in_minutes # 2 day - This is the maximum slack
+solver_max_timeout_in_seconds = 1 * 60
 
 """
 Carbon Intensity
@@ -345,7 +345,7 @@ Sampling from the job pool and determining arrival epochs
 num_instances = 1000
 num_jobs = 10 # per instance
 num_operations_per_job = 3
-mean_duration_per_op_in_epoch = 3
+mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
 power = 1 # machines are homogeneous
 jobs_arrival_epoch = [0 for _ in range(num_jobs)] # ever job arrives hour0 of the day
@@ -359,7 +359,7 @@ Running the flexible jobshop scenario for each instance
 def main_parallel(instance_num_start, instance_num_end, version):
     # instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 2, 5, 10]
-    log_file_path = f"../Logs/GeneralExp/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
+    log_file_path = f"../Logs/GeneralExp/OPT_MS/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
     start_time = datetime.now()
     
     manager = Manager()
@@ -394,32 +394,32 @@ def main_parallel(instance_num_start, instance_num_end, version):
             log[f"Server{sid}"] = servers_status.get(f"Server{sid}", [])
         log_dict_list_shared.append(log)
 
-        candidate_maximum_allowed_makespan = []
-        for slack_coeff in candidate_makespan_slack_coeff:
-            val = int(math.ceil(slack_coeff * global_minimum_makespan))
-            if val < initial_horizon:
-                candidate_maximum_allowed_makespan.append(val)
-            else:
-                candidate_maximum_allowed_makespan.append(initial_horizon)
-                break
-        if candidate_maximum_allowed_makespan[-1] != initial_horizon:
-            candidate_maximum_allowed_makespan.append(initial_horizon)
+        # candidate_maximum_allowed_makespan = []
+        # for slack_coeff in candidate_makespan_slack_coeff:
+        #     val = int(math.ceil(slack_coeff * global_minimum_makespan))
+        #     if val < initial_horizon:
+        #         candidate_maximum_allowed_makespan.append(val)
+        #     else:
+        #         candidate_maximum_allowed_makespan.append(initial_horizon)
+        #         break
+        # if candidate_maximum_allowed_makespan[-1] != initial_horizon:
+        #     candidate_maximum_allowed_makespan.append(initial_horizon)
 
-        # Parallel carbon-aware runs
-        with ProcessPoolExecutor() as executor:
-            futures = [
-                executor.submit(
-                    run_carbon_aware_task,
-                    instance_num, makespan_limit, global_minimum_makespan, start_time,
-                    list_jobs_data, list_job_ids, initial_horizon,
-                    num_jobs, num_machines, num_operations_per_job,
-                    power, epoch_in_minutes, solver_max_timeout_in_seconds,
-                    log_dict_list_shared
-                )
-                for makespan_limit in candidate_maximum_allowed_makespan
-            ]
-            for future in as_completed(futures):
-                future.result()
+        # # Parallel carbon-aware runs
+        # with ProcessPoolExecutor() as executor:
+        #     futures = [
+        #         executor.submit(
+        #             run_carbon_aware_task,
+        #             instance_num, makespan_limit, global_minimum_makespan, start_time,
+        #             list_jobs_data, list_job_ids, initial_horizon,
+        #             num_jobs, num_machines, num_operations_per_job,
+        #             power, epoch_in_minutes, solver_max_timeout_in_seconds,
+        #             log_dict_list_shared
+        #         )
+        #         for makespan_limit in candidate_maximum_allowed_makespan
+        #     ]
+        #     for future in as_completed(futures):
+        #         future.result()
 
         append_to_csv(list(log_dict_list_shared), log_file_path)
 def main():
@@ -491,8 +491,8 @@ def main():
             break
     
 # main()
-inst_num_on_each_machine = 125
-run_ver = 7
+inst_num_on_each_machine = 1000
+run_ver = 0
 main_parallel(instance_num_start = run_ver * inst_num_on_each_machine,
               instance_num_end = (run_ver+1) * inst_num_on_each_machine,
               version = run_ver)
