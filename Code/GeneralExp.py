@@ -356,11 +356,10 @@ list_jobs_data, list_job_ids = generate_multiple_job_schedules(job_dict, num_job
 """
 Running the flexible jobshop scenario for each instance
 """
-def main_parallel():
-    instance_num_start, instance_num_end = 0, num_instances
+def main_parallel(instance_num_start, instance_num_end, version):
+    # instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 2, 5, 10]
-    candidate_makespan_slack_coeff = [2, 1000]
-    log_file_path = f"../Logs/GeneralExp/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
+    log_file_path = f"../Logs/GeneralExp/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
     start_time = datetime.now()
     
     manager = Manager()
@@ -423,9 +422,6 @@ def main_parallel():
                 future.result()
 
         append_to_csv(list(log_dict_list_shared), log_file_path)
-
-        if instance_num == 1:
-            break
 def main():
     instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 2, 5, 10]
@@ -495,4 +491,8 @@ def main():
             break
     
 # main()
-main_parallel()
+inst_num_on_each_machine = 2
+run_ver = 2
+main_parallel(instance_num_start = run_ver * inst_num_on_each_machine,
+              instance_num_end = (run_ver+1) * inst_num_on_each_machine,
+              version = run_ver)
