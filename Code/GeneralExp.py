@@ -67,7 +67,7 @@ def append_to_csv(data_list, file_path):
     # Save back to CSV
     combined_df.to_csv(file_path, index=False)
     
-def makespan_minimizer(jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon):
+def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon):
     model = cp_model.CpModel()
 
     all_tasks = {}
@@ -152,7 +152,7 @@ def makespan_minimizer(jobs_data, jobs_id, num_machines, jobs_arrival_epoch, ini
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, "TimerInterrupt", _
 
-def carbon_aware_scheduling(jobs_data,jobs_id, max_allowed_makespan, solver_max_timeout_in_seconds):
+def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, max_allowed_makespan, solver_max_timeout_in_seconds):
     model = cp_model.CpModel()
     all_tasks = {}
     all_machines = [[] for _ in range(num_machines)]
@@ -277,10 +277,11 @@ def carbon_aware_scheduling(jobs_data,jobs_id, max_allowed_makespan, solver_max_
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, "TimerInterrupt", _
 
-def run_carbon_aware_task(instance_num, max_allowed_makespan, minimum_makespan, start_time, list_jobs_data, list_job_ids,
+def run_carbon_aware_task(carbon_trace_spec_day_per_epoch, selected_date, instance_num, max_allowed_makespan, minimum_makespan, start_time, list_jobs_data, list_job_ids,
                           initial_horizon, num_jobs, num_machines, num_operations_per_job, power,
                           epoch_in_minutes, solver_max_timeout_in_seconds, log_dict_list_shared):
     carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(
+        carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
         jobs_data=list_jobs_data[instance_num],
         jobs_id=list_job_ids[instance_num],
         max_allowed_makespan=max_allowed_makespan,
@@ -289,7 +290,7 @@ def run_carbon_aware_task(instance_num, max_allowed_makespan, minimum_makespan, 
 
     if solver_status == "Success":
         log = {
-            'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+            'ElapsedTime': str(datetime.now() - start_time).split(".")[0], "Datetime": selected_date,
             'Instance': instance_num, 'IsCarbonAware': True, 'Horizon': initial_horizon,
             'MaxMakeSpan': max_allowed_makespan, 'MinMakeSpan': minimum_makespan, 'Makespan': makespan,
             'CarbonConsumption(g)': round(carbon_consumption, 2),
@@ -303,49 +304,52 @@ def run_carbon_aware_task(instance_num, max_allowed_makespan, minimum_makespan, 
 """
 General vars
 """
-epoch_in_minutes = 5
-initial_horizon = 24 * 60 // epoch_in_minutes # 1 day - This is the maximum slack
-solver_max_timeout_in_seconds = 10 * 60
+epoch_in_minutes = 15
+initial_horizon = 2 * 24 * 60 // epoch_in_minutes # (in epochs) 2 day - This is the maximum slack
+solver_max_timeout_in_seconds = 5 * 60
 
 """
 Carbon Intensity
 """
-selected_date = pd.to_datetime("2024-06-01").date()
+start_date = pd.to_datetime("2024-01-01").date()
 location = "California"
 
+# loading the whole th trace
 carbon_trace = {}
-carbon_trace_spec_day = {}
-carbon_trace_spec_day_per_epoch = {}
-df1 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO.csv")[['datetime', 'carbon_intensity_avg']] # 2020-2023
 df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 df2.rename(columns={"Datetime (UTC)": "datetime", "Carbon intensity gCO₂eq/kWh (Life cycle)": "carbon_intensity_avg"}, inplace=True)
-carbon_trace[location] = pd.concat([df1, df2], ignore_index=True)
+carbon_trace[location] = df2.copy()
 carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
     lambda x: pd.to_datetime(x, utc=True, errors='coerce')
 )
-next_date = selected_date + pd.Timedelta(days=1)
-date_windows = [selected_date]
-for extra_day in range(7): # one week of intensity starting from selected date 
-    next_date = selected_date + pd.Timedelta(days=extra_day)
-    date_windows.append(next_date)
-mask = carbon_trace[location]["datetime"].dt.date.isin(date_windows)
-carbon_trace_spec_day[location] = carbon_trace[location][mask].copy()
-carbon_trace_spec_day[location]["Hour"] = carbon_trace[location]["datetime"].dt.hour
+# next_date = selected_date + pd.Timedelta(days=1)
+def generate_instance_carbon_intensity_trace(selected_date, location):
+    carbon_trace_spec_day = {}
+    carbon_trace_spec_day_per_epoch = {}
+    date_windows = [selected_date]
+    for extra_day in range(3): # 3 days of intensity starting from selected date 
+        next_date = selected_date + pd.Timedelta(days=extra_day)
+        date_windows.append(next_date)
+    mask = carbon_trace[location]["datetime"].dt.date.isin(date_windows)
+    carbon_trace_spec_day[location] = carbon_trace[location][mask].copy()
+    carbon_trace_spec_day[location]["Hour"] = carbon_trace[location]["datetime"].dt.hour
 
-carbon_trace_spec_day_per_epoch[location] = []
-epoch_num_in_one_hour = 60 // epoch_in_minutes
-intensities = carbon_trace_spec_day[location]['carbon_intensity_avg'].tolist()
-for intensity in intensities:
-    for i in range(epoch_num_in_one_hour):
-        carbon_trace_spec_day_per_epoch[location].append(int(round(intensity)))
+    carbon_trace_spec_day_per_epoch[location] = []
+    epoch_num_in_one_hour = 60 // epoch_in_minutes
+    intensities = carbon_trace_spec_day[location]['carbon_intensity_avg'].tolist()
+    for intensity in intensities:
+        for i in range(epoch_num_in_one_hour):
+            carbon_trace_spec_day_per_epoch[location].append(int(round(intensity)))
+    return carbon_trace_spec_day_per_epoch
         
 """
 Sampling from the job pool and determining arrival epochs
 """
 num_instances = 1000
+num_instances_per_day = 3
 num_jobs = 10 # per instance
 num_operations_per_job = 3
-mean_duration_per_op_in_epoch = 3
+mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
 power = 1 # machines are homogeneous
 jobs_arrival_epoch = [0 for _ in range(num_jobs)] # ever job arrives hour0 of the day
@@ -364,10 +368,14 @@ def main_parallel(instance_num_start, instance_num_end, version):
     
     manager = Manager()
     start_time = datetime.now()
+    selected_date = start_date
     for instance_num in range(instance_num_start, instance_num_end):
         print(f"Running Instance {instance_num}")
+        if instance_num % num_instances_per_day == 0:
+            selected_date += pd.Timedelta(days=1)
+        carbon_trace_spec_day_per_epoch = generate_instance_carbon_intensity_trace(selected_date = selected_date, location = location)
 
-        global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(
+        global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(carbon_trace_spec_day_per_epoch=carbon_trace_spec_day_per_epoch,
             jobs_data=list_jobs_data[instance_num],
             jobs_id=list_job_ids[instance_num],
             num_machines=num_machines,
@@ -382,7 +390,7 @@ def main_parallel(instance_num_start, instance_num_end, version):
 
         # Log baseline makespan schedule
         log = {
-            'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+            'ElapsedTime': str(datetime.now() - start_time).split(".")[0], "Datetime": selected_date,
             'Instance': instance_num, 'IsCarbonAware': False, 'Horizon': initial_horizon,
             'MaxMakeSpan': initial_horizon, 'MinMakeSpan': global_minimum_makespan, 'Makespan': global_minimum_makespan,
             'CarbonConsumption(g)': round(carbon_consumption, 2),
@@ -410,7 +418,7 @@ def main_parallel(instance_num_start, instance_num_end, version):
             futures = [
                 executor.submit(
                     run_carbon_aware_task,
-                    instance_num, makespan_limit, global_minimum_makespan, start_time,
+                    carbon_trace_spec_day_per_epoch, selected_date, instance_num, makespan_limit, global_minimum_makespan, start_time,
                     list_jobs_data, list_job_ids, initial_horizon,
                     num_jobs, num_machines, num_operations_per_job,
                     power, epoch_in_minutes, solver_max_timeout_in_seconds,
@@ -424,14 +432,19 @@ def main_parallel(instance_num_start, instance_num_end, version):
         append_to_csv(list(log_dict_list_shared), log_file_path)
 def main():
     instance_num_start, instance_num_end = 0, num_instances
-    candidate_makespan_slack_coeff = [1, 2, 5, 10]
-    candidate_makespan_slack_coeff = [2, 1000]
+    candidate_makespan_slack_coeff = [1, 1.5, 2]
     log_file_path = f"../Logs/GeneralExp/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
     start_time = datetime.now()
+    selected_date = start_date
     for instance_num in range(instance_num_start, instance_num_end, 1):
         # run makespan minimizer
         print(f"Running Instance {instance_num}")
-        global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(jobs_data = list_jobs_data[instance_num],
+        if instance_num % num_instances_per_day == 0:
+            selected_date += pd.Timedelta(days=1)
+        carbon_trace_spec_day_per_epoch = generate_instance_carbon_intensity_trace(selected_date = selected_date, location = location)
+        
+        global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
+                                                                    jobs_data = list_jobs_data[instance_num],
                                                                     jobs_id = list_job_ids[instance_num],
                                                                     num_machines = num_machines,
                                                                     jobs_arrival_epoch = jobs_arrival_epoch, 
@@ -440,7 +453,7 @@ def main():
             continue # Do not run carbon-aware scheduling
         log_dict_list = []
         # log makespan minimizer result
-        makespan_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+        makespan_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0], "Datetime": selected_date,
                             'Instance': instance_num, 'IsCarbonAware': False, 'Horizon': initial_horizon,
                             'MaxMakeSpan': initial_horizon, 'MinMakeSpan': global_minimum_makespan, 'Makespan': global_minimum_makespan,
                             'CarbonConsumption(g)': round(carbon_consumption, 2),
@@ -466,12 +479,13 @@ def main():
             candidate_maximum_allowed_makespan.append(initial_horizon)
         for max_allowed_makespan in candidate_maximum_allowed_makespan:
             print(f"max allowed makespan is {max_allowed_makespan}")
-            carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(jobs_data = list_jobs_data[instance_num], 
+            carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
+                                                                        jobs_data = list_jobs_data[instance_num], 
                                                                         jobs_id = list_job_ids[instance_num],
                                                                         max_allowed_makespan = max_allowed_makespan,
                                                                         solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
             if solver_status == "Success":
-                carbon_aware_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0],
+                carbon_aware_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0], "Datetime": selected_date,
                             'Instance': instance_num, 'IsCarbonAware': True, 'Horizon': initial_horizon,
                             'MaxMakeSpan': max_allowed_makespan, 'MinMakeSpan': global_minimum_makespan, 'Makespan': makespan,
                             'CarbonConsumption(g)': round(carbon_consumption, 2),
@@ -490,9 +504,9 @@ def main():
         if (instance_num == 1):
             break
     
-# main()
-inst_num_on_each_machine = 125
-run_ver = 7
-main_parallel(instance_num_start = run_ver * inst_num_on_each_machine,
-              instance_num_end = (run_ver+1) * inst_num_on_each_machine,
-              version = run_ver)
+main()
+# inst_num_on_each_machine = 125
+# run_ver = 7
+# main_parallel(instance_num_start = run_ver * inst_num_on_each_machine,
+#               instance_num_end = (run_ver+1) * inst_num_on_each_machine,
+#               version = run_ver)
