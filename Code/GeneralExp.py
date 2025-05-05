@@ -305,7 +305,7 @@ General vars
 """
 epoch_in_minutes = 5
 initial_horizon = 24 * 60 // epoch_in_minutes # 1 day - This is the maximum slack
-solver_max_timeout_in_seconds = 1 * 60
+solver_max_timeout_in_seconds = 10 * 60
 
 """
 Carbon Intensity
@@ -491,8 +491,8 @@ def main():
             break
     
 # main()
-inst_num_on_each_machine = 2
-run_ver = 2
+inst_num_on_each_machine = 125
+run_ver = 7
 main_parallel(instance_num_start = run_ver * inst_num_on_each_machine,
               instance_num_end = (run_ver+1) * inst_num_on_each_machine,
               version = run_ver)
