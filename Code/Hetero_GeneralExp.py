@@ -158,7 +158,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
         for (j, t, m), (start, end, interval, presence) in all_tasks.items():
             if solver.Value(presence):
                 # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
-                total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[location][solver.Value(start):solver.Value(end)]) * (epoch_in_minutes / 60)
+                total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[location][solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
                 machines_status[f"Server{m}"].append([int(jobs_id[j]), t, solver.Value(start), solver.Value(end)]) # [job, task, start, end]
