@@ -342,7 +342,7 @@ for intensity in intensities:
 """
 Sampling from the job pool and determining arrival epochs
 """
-num_instances = 1000
+num_instances = 2000
 num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
