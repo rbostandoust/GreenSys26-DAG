@@ -364,8 +364,8 @@ mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
 power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
 duration_coeff = [3, 2, 1, 0.75, 0.5]
-jobs_arrival_epoch = [0 for _ in range(num_jobs)] # ever job arrives hour0 of the day
-list_jobs_arrival_epoch = generate_multiple_job_arrival_epochs(start_hour=0, end_hour=24, epoch_in_minutes=epoch_in_minutes, sample_num=num_instances, num_jobs=num_jobs, seed=42)
+list_jobs_arrival_epoch = [[0 for _ in range(num_jobs)] for _ in range(num_instances)] # ever job arrives hour0 of the day
+# list_jobs_arrival_epoch = generate_multiple_job_arrival_epochs(start_hour=0, end_hour=24, epoch_in_minutes=epoch_in_minutes, sample_num=num_instances, num_jobs=num_jobs, seed=42)
 with open(f"../Data/JobPool/JobPool_{num_operations_per_job}Ops_MeanOpDur={mean_duration_per_op_in_epoch}_Epoch={epoch_in_minutes}.json", "r") as f:
     job_dict = json.load(f)
 list_jobs_data, list_job_ids = generate_multiple_job_schedules(job_dict, num_jobs = num_jobs, num_machines = num_machines, sample_num = num_instances, seed = 42)
