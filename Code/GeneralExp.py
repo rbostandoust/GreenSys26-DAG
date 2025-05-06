@@ -404,7 +404,7 @@ def main_parallel(instance_num_start, instance_num_end, version, start_date = pd
         candidate_maximum_allowed_makespan = []
         for slack_coeff in candidate_makespan_slack_coeff:
             val = int(math.ceil(slack_coeff * global_minimum_makespan))
-            candidate_maximum_allowed_makespan.append(max(val, initial_horizon))
+            candidate_maximum_allowed_makespan.append(min(val, initial_horizon))
         # if candidate_maximum_allowed_makespan[-1] != initial_horizon:
         #     candidate_maximum_allowed_makespan.append(initial_horizon)
 
@@ -467,7 +467,7 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
         candidate_maximum_allowed_makespan = []
         for slack_coeff in candidate_makespan_slack_coeff:
             val = int(math.ceil(slack_coeff * global_minimum_makespan))
-            candidate_maximum_allowed_makespan.append(max(val, initial_horizon))
+            candidate_maximum_allowed_makespan.append(min(val, initial_horizon))
         # if (len(candidate_maximum_allowed_makespan) == 0 or candidate_maximum_allowed_makespan[-1] != initial_horizon):
         #     candidate_maximum_allowed_makespan.append(initial_horizon)
         for i, max_allowed_makespan in enumerate(candidate_maximum_allowed_makespan):
