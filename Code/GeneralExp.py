@@ -330,13 +330,13 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-location = "California"
-# location = "Australia-WA"
+# location = "California"
+location = "Australia-WA"
 
 # loading the whole th trace
 carbon_trace = {}
-df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
-# df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+# df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 df2.rename(columns={"Datetime (UTC)": "datetime", "Carbon intensity gCO₂eq/kWh (Life cycle)": "carbon_intensity_avg"}, inplace=True)
 carbon_trace[location] = df2.copy()
 carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
@@ -440,7 +440,6 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
         if instance_num % num_instances_per_day == 0 and instance_num != instance_num_start:
             selected_date += pd.Timedelta(days=1)
         carbon_trace_spec_day_per_epoch = generate_instance_carbon_intensity_trace(selected_date = selected_date, location = location)
-        
         global_minimum_makespan, carbon_consumption, solver_status, servers_status = makespan_minimizer(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
                                                                     jobs_data = list_jobs_data[instance_num],
                                                                     jobs_id = list_job_ids[instance_num],
