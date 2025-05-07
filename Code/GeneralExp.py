@@ -350,7 +350,8 @@ location = "California"
 
 # loading the whole th trace
 carbon_trace = {}
-df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+if location == "California":
+    df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 # df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 # df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 df2.rename(columns={"Datetime (UTC)": "datetime", "Carbon intensity gCO₂eq/kWh (Life cycle)": "carbon_intensity_avg"}, inplace=True)
@@ -363,7 +364,7 @@ carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
 Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
-num_jobs = 2 # per instance
+num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
@@ -529,7 +530,7 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
     
 # main()
 ###########
-run_ver = 0
+run_ver = 7
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
