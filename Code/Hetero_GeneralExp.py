@@ -341,13 +341,15 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-location = "California"
+# location = "California"
 # location = "Australia-WA"
+location = "Australia-SA"
 
 # loading the whole th trace
 carbon_trace = {}
-df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+# df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 # df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 df2.rename(columns={"Datetime (UTC)": "datetime", "Carbon intensity gCO₂eq/kWh (Life cycle)": "carbon_intensity_avg"}, inplace=True)
 carbon_trace[location] = df2.copy()
 carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
