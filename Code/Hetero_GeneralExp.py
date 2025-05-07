@@ -341,15 +341,15 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-# location = "California"
+location = "California"
 # location = "Australia-WA"
-location = "Australia-SA"
+# location = "Australia-SA"
 
 # loading the whole th trace
 carbon_trace = {}
-# df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 # df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
-df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+# df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 df2.rename(columns={"Datetime (UTC)": "datetime", "Carbon intensity gCO₂eq/kWh (Life cycle)": "carbon_intensity_avg"}, inplace=True)
 carbon_trace[location] = df2.copy()
 carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
@@ -364,8 +364,12 @@ num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
-power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
-duration_coeff = [3, 2, 1, 0.75, 0.5]
+######## Heterogeneous ########
+# power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
+# duration_coeff = [3, 2, 1, 0.75, 0.5]
+######## Homogeneous ########
+power = [1, 1, 1, 1, 1] # machines are homogeneous.
+duration_coeff = [1, 1, 1, 1, 1]
 # list_jobs_arrival_epoch = [[0 for _ in range(num_jobs)] for _ in range(num_instances)] # ever job arrives hour0 of the day
 list_jobs_arrival_epoch = generate_multiple_job_arrival_epochs(start_hour=0, end_hour=24, epoch_in_minutes=epoch_in_minutes, sample_num=num_instances, num_jobs=num_jobs, seed=42)
 with open(f"../Data/JobPool/JobPool_{num_operations_per_job}Ops_MeanOpDur={mean_duration_per_op_in_epoch}_Epoch={epoch_in_minutes}.json", "r") as f:
