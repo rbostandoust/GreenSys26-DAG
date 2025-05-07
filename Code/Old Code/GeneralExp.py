@@ -12,13 +12,6 @@ from datetime import datetime, timedelta
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import Manager
 
-def generate_multiple_job_arrival_epochs(start_hour, end_hour, epoch_in_minutes, sample_num, num_jobs, seed):
-    local_rng = random.Random(seed)
-    list_jobs_arrival_epoch = []
-    for _ in range(sample_num):
-        jobs_arrival_epoch = sorted([local_rng.randrange(start_hour * 60 // epoch_in_minutes, end_hour * 60 // epoch_in_minutes) for _ in range(num_jobs)])
-        list_jobs_arrival_epoch.append(jobs_arrival_epoch)
-    return list_jobs_arrival_epoch
 def generate_multiple_job_schedules(job_dict, sample_num, num_jobs, num_machines, seed=42):
     """
     Run `sample_num` repeated samplings of `num_jobs` from job_dict.
@@ -106,11 +99,10 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
                 start = model.NewIntVar(0, initial_horizon, 'start' + suffix)
                 end = model.NewIntVar(0, initial_horizon, 'end' + suffix)
                 presence = model.NewBoolVar('presence' + suffix)
-                adjusted_duration = int(math.ceil(duration_coeff[m_id] * duration))
-                interval = model.NewOptionalIntervalVar(start, adjusted_duration, end, presence, 'interval' + suffix)
+                interval = model.NewOptionalIntervalVar(start, duration, end, presence, 'interval' + suffix)
 
                 all_tasks[(job_id, task_id, m_id)] = (start, end, interval, presence)
-                all_machines[m_id].append((start, adjusted_duration, interval))
+                all_machines[m_id].append((start, duration, interval))
 
     # Add constraints
     for job_id, job in enumerate(jobs_data):
@@ -165,7 +157,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
         for (j, t, m), (start, end, interval, presence) in all_tasks.items():
             if solver.Value(presence):
                 # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
-                total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[location][solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
+                total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[location][solver.Value(start):solver.Value(end)]) * power * (epoch_in_minutes / 60)
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
                 machines_status[f"Server{m}"].append([int(jobs_id[j]), t, solver.Value(start), solver.Value(end)]) # [job, task, start, end]
@@ -179,7 +171,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, "TimerInterrupt", _
 
-def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, jobs_arrival_epoch, max_allowed_makespan, solver_max_timeout_in_seconds):
+def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, max_allowed_makespan, solver_max_timeout_in_seconds):
     model = cp_model.CpModel()
     all_tasks = {}
     all_machines = [[] for _ in range(num_machines)]
@@ -192,11 +184,10 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
                 start = model.NewIntVar(0, max_allowed_makespan, 'start' + suffix)
                 end = model.NewIntVar(0, max_allowed_makespan, 'end' + suffix)
                 presence = model.NewBoolVar('presence' + suffix)
-                adjusted_duration = int(math.ceil(duration_coeff[m_id] * duration))
-                interval = model.NewOptionalIntervalVar(start, adjusted_duration, end, presence, 'interval' + suffix)
+                interval = model.NewOptionalIntervalVar(start, duration, end, presence, 'interval' + suffix)
 
                 all_tasks[(job_id, task_id, m_id)] = (start, end, interval, presence)
-                all_machines[m_id].append((start, adjusted_duration, interval, presence))
+                all_machines[m_id].append((start, duration, interval, presence))
 
     # Add constraints
     for job_id, job in enumerate(jobs_data):
@@ -266,7 +257,7 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
             model.AddMaxEquality(active, relevant_presences) # if one of the b s is 1 then active[t][m] = 1
 
             # Compute carbon emission at this time step
-            carbon_value = carbon_trace_spec_day_per_epoch[location][t] * power[m]
+            carbon_value = carbon_trace_spec_day_per_epoch[location][t] * power
             carbon_term = model.NewIntVar(0, carbon_value, f'carbon_{t}_{m}')
             model.Add(carbon_term == carbon_value).OnlyEnforceIf(active)
             model.Add(carbon_term == 0).OnlyEnforceIf(active.Not())
@@ -305,15 +296,13 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, "TimerInterrupt", _
 
-def run_carbon_aware_task(carbon_trace_spec_day_per_epoch, selected_date, instance_num, max_allowed_makespan, slack_coeff, minimum_makespan, start_time,
-                          list_jobs_data, list_job_ids, list_jobs_arrival_epoch,
+def run_carbon_aware_task(carbon_trace_spec_day_per_epoch, selected_date, instance_num, max_allowed_makespan, slack_coeff, minimum_makespan, start_time, list_jobs_data, list_job_ids,
                           initial_horizon, num_jobs, num_machines, num_operations_per_job, power,
                           epoch_in_minutes, solver_max_timeout_in_seconds, log_dict_list_shared):
     carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(
         carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
         jobs_data=list_jobs_data[instance_num],
         jobs_id=list_job_ids[instance_num],
-        jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
         max_allowed_makespan=max_allowed_makespan,
         solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
     )
@@ -326,7 +315,7 @@ def run_carbon_aware_task(carbon_trace_spec_day_per_epoch, selected_date, instan
             'CarbonConsumption(g)': round(carbon_consumption, 2),
             'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
             'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
-            'JobIndex': list_job_ids[instance_num], 'JobArrivalEpoch': list_jobs_arrival_epoch[instance_num]
+            'JobIndex': list_job_ids[instance_num]
         }
         for sid in range(num_machines):
             log[f"Server{sid}"] = servers_status.get(f"Server{sid}", [])
@@ -341,15 +330,13 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-location = "California"
-# location = "Australia-WA"
-# location = "Australia-SA"
+# location = "California"
+location = "Australia-WA"
 
 # loading the whole th trace
 carbon_trace = {}
-df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
-# df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
-# df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+# df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 df2.rename(columns={"Datetime (UTC)": "datetime", "Carbon intensity gCO₂eq/kWh (Life cycle)": "carbon_intensity_avg"}, inplace=True)
 carbon_trace[location] = df2.copy()
 carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
@@ -364,14 +351,8 @@ num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
-######## Heterogeneous ########
-# power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
-# duration_coeff = [3, 2, 1, 0.75, 0.5]
-######## Homogeneous ########
-power = [1, 1, 1, 1, 1] # machines are homogeneous.
-duration_coeff = [1, 1, 1, 1, 1]
-# list_jobs_arrival_epoch = [[0 for _ in range(num_jobs)] for _ in range(num_instances)] # ever job arrives hour0 of the day
-list_jobs_arrival_epoch = generate_multiple_job_arrival_epochs(start_hour=0, end_hour=24, epoch_in_minutes=epoch_in_minutes, sample_num=num_instances, num_jobs=num_jobs, seed=42)
+power = 1 # machines are homogeneous
+jobs_arrival_epoch = [0 for _ in range(num_jobs)] # ever job arrives hour0 of the day
 with open(f"../Data/JobPool/JobPool_{num_operations_per_job}Ops_MeanOpDur={mean_duration_per_op_in_epoch}_Epoch={epoch_in_minutes}.json", "r") as f:
     job_dict = json.load(f)
 list_jobs_data, list_job_ids = generate_multiple_job_schedules(job_dict, num_jobs = num_jobs, num_machines = num_machines, sample_num = num_instances, seed = 42)
@@ -399,7 +380,7 @@ def main_parallel(instance_num_start, instance_num_end, version, start_date = pd
             jobs_data=list_jobs_data[instance_num],
             jobs_id=list_job_ids[instance_num],
             num_machines=num_machines,
-            jobs_arrival_epoch=list_jobs_arrival_epoch[instance_num],
+            jobs_arrival_epoch=jobs_arrival_epoch,
             initial_horizon=initial_horizon
         )
 
@@ -416,7 +397,7 @@ def main_parallel(instance_num_start, instance_num_end, version, start_date = pd
             'CarbonConsumption(g)': round(carbon_consumption, 2),
             'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
             'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
-            'JobIndex': list_job_ids[instance_num], 'JobArrivalEpoch': list_jobs_arrival_epoch[instance_num]
+            'JobIndex': list_job_ids[instance_num]
         }
         for sid in range(num_machines):
             log[f"Server{sid}"] = servers_status.get(f"Server{sid}", [])
@@ -435,7 +416,7 @@ def main_parallel(instance_num_start, instance_num_end, version, start_date = pd
                 executor.submit(
                     run_carbon_aware_task,
                     carbon_trace_spec_day_per_epoch, selected_date, instance_num, makespan_limit, candidate_makespan_slack_coeff[i], global_minimum_makespan, start_time,
-                    list_jobs_data, list_job_ids, list_jobs_arrival_epoch, initial_horizon,
+                    list_jobs_data, list_job_ids, initial_horizon,
                     num_jobs, num_machines, num_operations_per_job,
                     power, epoch_in_minutes, solver_max_timeout_in_seconds,
                     log_dict_list_shared
@@ -463,7 +444,7 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
                                                                     jobs_data = list_jobs_data[instance_num],
                                                                     jobs_id = list_job_ids[instance_num],
                                                                     num_machines = num_machines,
-                                                                    jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num], 
+                                                                    jobs_arrival_epoch = jobs_arrival_epoch, 
                                                                     initial_horizon = initial_horizon,)
         if solver_status != "Success":
             continue # Do not run carbon-aware scheduling
@@ -475,7 +456,7 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
                             'CarbonConsumption(g)': round(carbon_consumption, 2),
                             'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
                             'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
-                            'JobIndex': list_job_ids[instance_num], 'JobArrivalEpoch': list_jobs_arrival_epoch[instance_num]
+                            'JobIndex': list_job_ids[instance_num]
                             }
         for serverid in range(num_machines):
             if f"Server{serverid}" in servers_status.keys():
@@ -495,7 +476,6 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
             carbon_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
                                                                         jobs_data = list_jobs_data[instance_num], 
                                                                         jobs_id = list_job_ids[instance_num],
-                                                                        jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
                                                                         max_allowed_makespan = max_allowed_makespan,
                                                                         solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
             if solver_status == "Success":
@@ -505,7 +485,7 @@ def main(start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day
                             'CarbonConsumption(g)': round(carbon_consumption, 2),
                             'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
                             'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
-                            'JobIndex': list_job_ids[instance_num], 'JobArrivalEpoch': list_jobs_arrival_epoch[instance_num]
+                            'JobIndex': list_job_ids[instance_num]
                             }
                 for serverid in range(num_machines):
                     if f"Server{serverid}" in servers_status.keys():
