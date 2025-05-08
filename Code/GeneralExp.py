@@ -441,18 +441,28 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, None, "TimerInterrupt", _
 
-def run_carbon_aware_task(carbon_trace_spec_day_per_epoch, selected_date, instance_num, max_allowed_makespan, slack_coeff, minimum_makespan, start_time,
+def run_objective_aware_task(carbon_trace_spec_day_per_epoch, selected_date, instance_num, max_allowed_makespan, slack_coeff, minimum_makespan, start_time,
                           list_jobs_data, list_job_ids, list_jobs_arrival_epoch,
                           num_jobs, num_machines, num_operations_per_job, power,
-                          epoch_in_minutes, solver_max_timeout_in_seconds, log_dict_list_shared):
-    carbon_consumption, energy_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(
-        carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
-        jobs_data=list_jobs_data[instance_num],
-        jobs_id=list_job_ids[instance_num],
-        jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
-        max_allowed_makespan=max_allowed_makespan,
-        solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
-    )
+                          epoch_in_minutes, solver_max_timeout_in_seconds, log_dict_list_shared, experiment_type):
+    if experiment_type == "Heterogen_Energy" or experiment_type == "Homogen_Energy":
+        carbon_consumption, energy_consumption, makespan, solver_status, servers_status = energy_aware_scheduling(
+            carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
+            jobs_data=list_jobs_data[instance_num],
+            jobs_id=list_job_ids[instance_num],
+            jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
+            max_allowed_makespan=max_allowed_makespan,
+            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
+        )
+    else:
+        carbon_consumption, energy_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(
+            carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch,
+            jobs_data=list_jobs_data[instance_num],
+            jobs_id=list_job_ids[instance_num],
+            jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
+            max_allowed_makespan=max_allowed_makespan,
+            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
+        )
 
     if solver_status == "Success":
         log = {
@@ -580,12 +590,13 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
         with ProcessPoolExecutor() as executor:
             futures = [
                 executor.submit(
-                    run_carbon_aware_task,
+                    run_objective_aware_task,
                     carbon_trace_spec_day_per_epoch[location], selected_date, instance_num, makespan_limit, candidate_makespan_slack_coeff[i], global_minimum_makespan, start_time,
                     list_jobs_data, list_job_ids, list_jobs_arrival_epoch,
                     num_jobs, num_machines, num_operations_per_job,
                     power, epoch_in_minutes, solver_max_timeout_in_seconds,
-                    log_dict_list_shared
+                    log_dict_list_shared,
+                    experiment_type
                 )
                 for i , makespan_limit in enumerate(candidate_maximum_allowed_makespan)
             ]
@@ -673,25 +684,25 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
         if (instance_num == 1):
             break
     
-main(experiment_type = experiment_type)
+# main(experiment_type = experiment_type)
 ###########
-# run_ver = 7
-# #-----
-# start_date = pd.to_datetime("2024-01-01").date()
-# total_days = 360
-# num_instances_per_day = 3
-# num_available_obelix = 8
-# inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
-# days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
-# obelix_start_dates = []
-# for i in range(num_available_obelix):
-#     start_day = i * days_covered_per_obelix
-#     start_dt = start_date + pd.Timedelta(days=start_day)
-#     print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
-#     obelix_start_dates.append(start_dt)
-# main_parallel(experiment_type = experiment_type,
-#               instance_num_start = run_ver * inst_num_on_each_obelix,
-#               instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
-#               version = run_ver,
-#               start_date = obelix_start_dates[run_ver],
-#               num_instances_per_day = num_instances_per_day)
+run_ver = 0
+#-----
+start_date = pd.to_datetime("2024-01-01").date()
+total_days = 360
+num_instances_per_day = 3
+num_available_obelix = 8
+inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
+days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
+obelix_start_dates = []
+for i in range(num_available_obelix):
+    start_day = i * days_covered_per_obelix
+    start_dt = start_date + pd.Timedelta(days=start_day)
+    print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
+    obelix_start_dates.append(start_dt)
+main_parallel(experiment_type = experiment_type,
+              instance_num_start = run_ver * inst_num_on_each_obelix,
+              instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
+              version = run_ver,
+              start_date = obelix_start_dates[run_ver],
+              num_instances_per_day = num_instances_per_day)
