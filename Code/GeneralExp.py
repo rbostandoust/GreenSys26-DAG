@@ -512,15 +512,19 @@ num_instances = 2000
 num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
-num_machines = 5 # per instance
+num_machines = 10 # per instance
 # experiment_type = "Homogen"
-# experiment_type = "Heterogen"
-experiment_type = "Heterogen_Energy"
+experiment_type = "Heterogen"
+# experiment_type = "Heterogen_Energy"
 # experiment_type = "Homogen_Energy"
 ######## Heterogeneous ########
 if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
-    power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
-    duration_coeff = [3, 2, 1, 0.75, 0.5]
+    # 5 Servers
+    # power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
+    # duration_coeff = [3, 2, 1, 0.75, 0.5]
+    # 10 Servers
+    power = [1, 1, 2, 2, 4, 4, 6, 6, 8, 8] # machines are heterogeneous (power is normalized!)
+    duration_coeff = [3, 3, 2, 2, 1, 1, 0.75, 0.75, 0.5, 0.5]
 ######## Homogeneous ########
 elif experiment_type == "Homogen" or experiment_type == "Homogen_Energy":
     power = [1, 1, 1, 1, 1] # machines are homogeneous.
