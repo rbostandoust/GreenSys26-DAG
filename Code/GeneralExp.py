@@ -487,8 +487,8 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-location = "California"
-# location = "AU-SA"
+# location = "California"
+location = "AU-SA"
 
 # loading the whole th trace
 carbon_trace = {}
@@ -512,7 +512,7 @@ num_instances = 2000
 num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
-num_machines = 15 # per instance
+num_machines = 5 # per instance
 # experiment_type = "Homogen"
 experiment_type = "Heterogen"
 # experiment_type = "Heterogen_Energy"
@@ -700,7 +700,7 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     
 # main(experiment_type = experiment_type)
 ###########
-run_ver = 6
+run_ver = 7
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
