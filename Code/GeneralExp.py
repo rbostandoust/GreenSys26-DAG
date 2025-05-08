@@ -368,8 +368,8 @@ num_jobs = 10 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
-# experiment_type = "Homogen"
-experiment_type = "Heterogen"
+experiment_type = "Homogen"
+# experiment_type = "Heterogen"
 ######## Heterogeneous ########
 if experiment_type == "Heterogen":
     power = [1, 2, 4, 6, 8] # machines are heterogeneous (power is normalized!)
