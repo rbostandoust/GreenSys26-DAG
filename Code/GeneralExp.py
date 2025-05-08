@@ -269,7 +269,11 @@ def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
 
             # Compute carbon emission at this time step
             # carbon_value = carbon_trace_spec_day_per_epoch[t] * power[m]
-            energy_value =  power[m]
+            if not mixed_objective:
+                energy_value =  power[m]
+            else:
+                alpha = 0.01
+                energy_value = (20 + int(round(carbon_trace_spec_day_per_epoch[t] * alpha))) * power[m]
             # carbon_term = model.NewIntVar(0, carbon_value, f'carbon_{t}_{m}')
             energy_term = model.NewIntVar(0, energy_value, f'energy_{t}_{m}')
             # model.Add(carbon_term == carbon_value).OnlyEnforceIf(active)
@@ -289,7 +293,8 @@ def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
 
     # Output solution
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        total_energy_consumption = solver.Value(total_energy) * (epoch_in_minutes / 60)
+        # total_energy_consumption = solver.Value(total_energy) * (epoch_in_minutes / 60)
+        total_energy_consumption = 0
         total_carbon_consumption = 0        
         machines_status = {}
         makespan_val = 0
@@ -298,6 +303,7 @@ def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
         for (j, t, m), (start, end, _, presence) in all_tasks.items():
             if solver.Value(presence):
                 total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
+                total_energy_consumption += (solver.Value(end)-solver.Value(start)) * power[m] * (epoch_in_minutes / 60)
                 # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
@@ -400,7 +406,11 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
             model.AddMaxEquality(active, relevant_presences) # if one of the b s is 1 then active[t][m] = 1
 
             # Compute carbon emission at this time step
-            carbon_value = carbon_trace_spec_day_per_epoch[t] * power[m]
+            if not mixed_objective:
+                carbon_value = carbon_trace_spec_day_per_epoch[t] * power[m]
+            else:
+                alpha = 1
+                carbon_value = (carbon_trace_spec_day_per_epoch[t] + alpha) * power[m]
             carbon_term = model.NewIntVar(0, carbon_value, f'carbon_{t}_{m}')
             model.Add(carbon_term == carbon_value).OnlyEnforceIf(active)
             model.Add(carbon_term == 0).OnlyEnforceIf(active.Not())
@@ -417,7 +427,8 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
 
     # Output solution
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        total_carbon_consumption = solver.Value(total_carbon) * (epoch_in_minutes / 60)
+        # total_carbon_consumption = solver.Value(total_carbon) * (epoch_in_minutes / 60)
+        total_carbon_consumption = 0
         total_energy_consumption = 0
         machines_status = {}
         makespan_val = 0
@@ -428,6 +439,7 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
                 # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
+                total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
                 total_energy_consumption += (solver.Value(end)-solver.Value(start)) * power[m] * (epoch_in_minutes / 60)
                 makespan_val = max(makespan_val, solver.Value(end))
                 machines_status[f"Server{m}"].append([int(jobs_id[j]), t, solver.Value(start), solver.Value(end)]) # [job, task, start, end]
@@ -487,8 +499,8 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-# location = "California"
-location = "AU-SA"
+location = "California"
+# location = "AU-SA"
 
 # loading the whole th trace
 carbon_trace = {}
@@ -509,14 +521,16 @@ carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
 Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
-num_jobs = 10 # per instance
+num_jobs = 2 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
 # experiment_type = "Homogen"
-experiment_type = "Heterogen"
-# experiment_type = "Heterogen_Energy"
+# experiment_type = "Heterogen"
+experiment_type = "Heterogen_Energy"
 # experiment_type = "Homogen_Energy"
+# ---------
+mixed_objective = True
 ######## Heterogeneous ########
 if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
     # 5 Servers
@@ -554,7 +568,10 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
     # instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 1.5, 2]
     # candidate_makespan_slack_coeff = [1, 1.5, 2]
-    log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
+    if not mixed_objective:
+        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
+    else:
+        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_MixedObjective_v{version}.csv"
     directory = os.path.dirname(log_file_path)
     os.makedirs(directory, exist_ok=True)
     start_time = datetime.now()
@@ -622,7 +639,10 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 1.5, 2]
     candidate_makespan_slack_coeff = [1]
-    log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
+    if not mixed_objective:
+        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
+    else:
+        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_MixedObjective.csv"
     directory = os.path.dirname(log_file_path)
     os.makedirs(directory, exist_ok=True)
     start_time = datetime.now()
@@ -698,25 +718,25 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
         if (instance_num == 1):
             break
     
-# main(experiment_type = experiment_type)
+main(experiment_type = experiment_type)
 ###########
-run_ver = 7
-#-----
-start_date = pd.to_datetime("2024-01-01").date()
-total_days = 360
-num_instances_per_day = 3
-num_available_obelix = 8
-inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
-days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
-obelix_start_dates = []
-for i in range(num_available_obelix):
-    start_day = i * days_covered_per_obelix
-    start_dt = start_date + pd.Timedelta(days=start_day)
-    print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
-    obelix_start_dates.append(start_dt)
-main_parallel(experiment_type = experiment_type,
-              instance_num_start = run_ver * inst_num_on_each_obelix,
-              instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
-              version = run_ver,
-              start_date = obelix_start_dates[run_ver],
-              num_instances_per_day = num_instances_per_day)
+# run_ver = 7
+# #-----
+# start_date = pd.to_datetime("2024-01-01").date()
+# total_days = 360
+# num_instances_per_day = 3
+# num_available_obelix = 8
+# inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
+# days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
+# obelix_start_dates = []
+# for i in range(num_available_obelix):
+#     start_day = i * days_covered_per_obelix
+#     start_dt = start_date + pd.Timedelta(days=start_day)
+#     print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
+#     obelix_start_dates.append(start_dt)
+# main_parallel(experiment_type = experiment_type,
+#               instance_num_start = run_ver * inst_num_on_each_obelix,
+#               instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
+#               version = run_ver,
+#               start_date = obelix_start_dates[run_ver],
+#               num_instances_per_day = num_instances_per_day)
