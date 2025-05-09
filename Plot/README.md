@@ -1,3 +1,7 @@
-# Version Spec
-- General Exp: Max makespan is capped by 2days
-- General Expv2: No capping for different ratio of stretch factor $\frac{Max Makespan}{Optimal Makespan}$ - Used for Hotcarbon'25 figures
+# GeneralExp
+- Max makespan is capped by 2days
+- Plots are not used for HotCarbon'25
+
+# GeneralExpv2
+- Figures for general experiments of the paper for HotCarbon'25
+- No capping for different ratio of stretch factor $\frac{Max Makespan}{Optimal Makespan}$
