@@ -93,7 +93,7 @@ def generate_instance_carbon_intensity_trace(selected_date, location, windows_si
             carbon_trace_spec_day_per_epoch[location].append(int(round(intensity)))
     return carbon_trace_spec_day_per_epoch
     
-def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon):
+def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon, solver_max_timeout_in_seconds):
     model = cp_model.CpModel()
 
     all_tasks = {}
@@ -154,7 +154,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
     # Solve model
     solver = cp_model.CpSolver()
     status = solver.Solve(model)
-    solver.parameters.max_time_in_seconds = initial_horizon
+    solver.parameters.max_time_in_seconds = solver_max_timeout_in_seconds
     status = solver.Solve(model)
 
     # Output solution
@@ -522,7 +522,7 @@ Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
 num_jobs = 10 # per instance
-num_operations_per_job = 1
+num_operations_per_job = 5
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
 experiment_type = "Homogen"
@@ -590,7 +590,8 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
             jobs_id=list_job_ids[instance_num],
             num_machines=num_machines,
             jobs_arrival_epoch=list_jobs_arrival_epoch[instance_num],
-            initial_horizon=initial_horizon
+            initial_horizon=initial_horizon,
+            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
         )
 
         if solver_status != "Success":
@@ -658,7 +659,8 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
                                                                     jobs_id = list_job_ids[instance_num],
                                                                     num_machines = num_machines,
                                                                     jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num], 
-                                                                    initial_horizon = initial_horizon)
+                                                                    initial_horizon = initial_horizon,
+                                                                    solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
         if solver_status != "Success":
             continue # Do not run carbon-aware scheduling
         log_dict_list = []
