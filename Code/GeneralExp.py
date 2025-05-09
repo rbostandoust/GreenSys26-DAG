@@ -153,7 +153,6 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
 
     # Solve model
     solver = cp_model.CpSolver()
-    status = solver.Solve(model)
     solver.parameters.max_time_in_seconds = solver_max_timeout_in_seconds
     status = solver.Solve(model)
 
@@ -522,9 +521,9 @@ Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
 num_jobs = 10 # per instance
-num_operations_per_job = 5
+num_machines = 10 # per instance
+num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
-num_machines = 5 # per instance
 experiment_type = "Homogen"
 # experiment_type = "Heterogen"
 # experiment_type = "Heterogen_Energy"
@@ -551,8 +550,10 @@ if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
         duration_coeff = [3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 0.75, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5, 0.5]
 ######## Homogeneous ########
 elif experiment_type == "Homogen" or experiment_type == "Homogen_Energy":
-    power = [1, 1, 1, 1, 1] # machines are homogeneous.
-    duration_coeff = [1, 1, 1, 1, 1]
+    # power = [1, 1, 1, 1, 1] # machines are homogeneous.
+    # duration_coeff = [1, 1, 1, 1, 1]
+    power = [1 for _ in range(num_machines)] # machines are homogeneous.
+    duration_coeff = [1 for _ in range(num_machines)]
 else:
     raise Exception ("Unknown Experiment Type!")
 # list_jobs_arrival_epoch = [[0 for _ in range(num_jobs)] for _ in range(num_instances)] # ever job arrives hour0 of the day
@@ -722,7 +723,7 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     
 # main(experiment_type = experiment_type)
 ###########
-run_ver = 7
+run_ver = 0
 # candidate_makespan_slack_coeff = [1, 1.5, 2]
 candidate_makespan_slack_coeff = [1]
 #-----
