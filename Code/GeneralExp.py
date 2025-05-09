@@ -499,8 +499,8 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-location = "California"
-# location = "AU-SA"
+# location = "California"
+location = "AU-SA"
 
 # loading the whole th trace
 carbon_trace = {}
