@@ -522,7 +522,7 @@ Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
 num_jobs = 10 # per instance
-num_operations_per_job = 5
+num_operations_per_job = 1
 mean_duration_per_op_in_epoch = 7
 num_machines = 5 # per instance
 experiment_type = "Homogen"
