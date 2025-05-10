@@ -498,8 +498,8 @@ solver_max_timeout_in_seconds = 1 * 60
 """
 Carbon Intensity
 """
-location = "California"
-# location = "AU-SA"
+# location = "California"
+location = "AU-SA"
 
 # loading the whole th trace
 carbon_trace = {}
@@ -522,7 +522,7 @@ Sampling from the job pool and determining arrival epochs
 num_instances = 2000
 num_jobs = 10 # per instance
 num_machines = 5 # per instance
-num_operations_per_job = 2
+num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
 experiment_type = "Homogen"
 # experiment_type = "Heterogen"
@@ -530,6 +530,11 @@ experiment_type = "Homogen"
 # experiment_type = "Homogen_Energy"
 # ---------
 mixed_objective = False # having a tie breaker for energy-aware optimization
+variable_solver_timeout = True
+list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 3*solver_max_timeout_in_seconds, 5*solver_max_timeout_in_seconds]
+# ------------ Log Directory
+# root_log_directory = f"../Logs/GeneralExpv2/{experiment_type}/{location}" # Most of HotCarbon Results
+root_log_directory = f"../Logs/GeneralExpv3-VariableTimer/{experiment_type}/{location}" # Variable timeout testing
 ######## Heterogeneous ########
 if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
     # 5 Servers
@@ -550,8 +555,6 @@ if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
         duration_coeff = [3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 0.75, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5, 0.5]
 ######## Homogeneous ########
 elif experiment_type == "Homogen" or experiment_type == "Homogen_Energy":
-    # power = [1, 1, 1, 1, 1] # machines are homogeneous.
-    # duration_coeff = [1, 1, 1, 1, 1]
     power = [1 for _ in range(num_machines)] # machines are homogeneous.
     duration_coeff = [1 for _ in range(num_machines)]
 else:
@@ -570,9 +573,9 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
     # candidate_makespan_slack_coeff = [1, 1.5, 2]
     # candidate_makespan_slack_coeff = [1, 1.5, 2]
     if not mixed_objective:
-        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
+        log_file_path = f"{root_log_directory}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_v{version}.csv"
     else:
-        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_MixedObjective_v{version}.csv"
+        log_file_path = f"{root_log_directory}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_MixedObjective_v{version}.csv"
     directory = os.path.dirname(log_file_path)
     os.makedirs(directory, exist_ok=True)
     start_time = datetime.now()
@@ -615,10 +618,17 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
         log_dict_list_shared.append(log)
 
         candidate_maximum_allowed_makespan = []
-        for slack_coeff in candidate_makespan_slack_coeff:
+        solver_timeouts = []
+        for k, slack_coeff in enumerate(candidate_makespan_slack_coeff):
             val = int(math.ceil(slack_coeff * global_minimum_makespan)) # in epochs
             candidate_maximum_allowed_makespan.append(min(val, len(carbon_trace_spec_day_per_epoch[location])))
-
+            if variable_solver_timeout:
+                index = -1
+                if k < len(list_solver_max_timeout):
+                    index = k
+                solver_timeouts.append(list_solver_max_timeout[index])
+            else:
+                solver_timeouts.append(solver_max_timeout_in_seconds)
         # Parallel carbon-aware runs
         with ProcessPoolExecutor() as executor:
             futures = [
@@ -627,7 +637,7 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
                     carbon_trace_spec_day_per_epoch[location], selected_date, instance_num, makespan_limit, candidate_makespan_slack_coeff[i], global_minimum_makespan, start_time,
                     list_jobs_data, list_job_ids, list_jobs_arrival_epoch,
                     num_jobs, num_machines, num_operations_per_job,
-                    power, epoch_in_minutes, solver_max_timeout_in_seconds,
+                    power, epoch_in_minutes, solver_timeouts[i],
                     log_dict_list_shared,
                     experiment_type
                 )
@@ -640,11 +650,11 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
 def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day = 1):
     instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 1.5, 2]
-    candidate_makespan_slack_coeff = [1]
+    candidate_makespan_slack_coeff = [1, 1.5]
     if not mixed_objective:
-        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
+        log_file_path = f"{root_log_directory}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
     else:
-        log_file_path = f"../Logs/GeneralExpv2/{experiment_type}/{location}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_MixedObjective.csv"
+        log_file_path = f"{root_log_directory}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}_MixedObjective.csv"
     directory = os.path.dirname(log_file_path)
     os.makedirs(directory, exist_ok=True)
     start_time = datetime.now()
@@ -687,27 +697,34 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
             candidate_maximum_allowed_makespan.append(min(val, len(carbon_trace_spec_day_per_epoch[location])))
         for i, max_allowed_makespan in enumerate(candidate_maximum_allowed_makespan):
             print(f"max allowed makespan is {max_allowed_makespan}")
+            curr_timeout = solver_max_timeout_in_seconds
+            if variable_solver_timeout:
+                index = -1
+                if i < len(list_solver_max_timeout):
+                    index = i
+                curr_timeout = list_solver_max_timeout[index]
+            print("TIMEOUT = ", curr_timeout //  60)
             if experiment_type == "Heterogen_Energy" or experiment_type == "Homogen_Energy":
                 carbon_consumption, energy_consumption, makespan, solver_status, servers_status = energy_aware_scheduling(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch[location],
                                                                             jobs_data = list_jobs_data[instance_num], 
                                                                             jobs_id = list_job_ids[instance_num],
                                                                             jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
                                                                             max_allowed_makespan = max_allowed_makespan,
-                                                                            solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
+                                                                            solver_max_timeout_in_seconds = curr_timeout)
             else:    
                 carbon_consumption, energy_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch[location],
                                                                             jobs_data = list_jobs_data[instance_num], 
                                                                             jobs_id = list_job_ids[instance_num],
                                                                             jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
                                                                             max_allowed_makespan = max_allowed_makespan,
-                                                                            solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
+                                                                            solver_max_timeout_in_seconds = curr_timeout)
             if solver_status == "Success":
                 objective_aware_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0], "Datetime": selected_date,
                             'Instance': instance_num, 'IsCarbonAware': True,
                             'MaxMakeSpan': max_allowed_makespan, 'MinMakeSpan': global_minimum_makespan, 'SlackCoeff': candidate_makespan_slack_coeff[i], 'Makespan': makespan,
                             'CarbonConsumption(g)': round(carbon_consumption, 2), 'EnergyConsumption(kWh)': round(energy_consumption, 2),
                             'JobNumber': num_jobs, 'ServerNumber': num_machines, 'OperationsPerJob': num_operations_per_job,
-                            'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': solver_max_timeout_in_seconds // 60,
+                            'ServerPower': power, 'EpochDuration(min)': epoch_in_minutes, 'SolverTimer(min)': curr_timeout // 60,
                             'JobIndex': list_job_ids[instance_num], 'JobArrivalEpoch': list_jobs_arrival_epoch[instance_num]
                             }
                 for serverid in range(num_machines):
@@ -723,9 +740,9 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     
 # main(experiment_type = experiment_type)
 ###########
-run_ver = 7
-# candidate_makespan_slack_coeff = [1, 1.5, 2]
-candidate_makespan_slack_coeff = [1]
+run_ver = 0
+candidate_makespan_slack_coeff = [1, 1.5, 2]
+# candidate_makespan_slack_coeff = [1]
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
