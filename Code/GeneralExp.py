@@ -499,7 +499,8 @@ solver_max_timeout_in_seconds = 1 * 60
 Carbon Intensity
 """
 # location = "California"
-location = "AU-SA"
+# location = "AU-SA"
+location = "CA-ON"
 
 # loading the whole th trace
 carbon_trace = {}
@@ -507,6 +508,8 @@ if location == "California":
     df2 = pd.read_csv(f"../CarbonTrace/US-CAL-CISO-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 elif location == "AU-SA":
     df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+elif location == "CA-ON":
+    df2 = pd.read_csv(f"../CarbonTrace/CA-ON-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 else:
     raise Exception ("Unknown Location!")
 # df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
@@ -524,17 +527,19 @@ num_jobs = 10 # per instance
 num_machines = 5 # per instance
 num_operations_per_job = 3
 mean_duration_per_op_in_epoch = 7
+# ---------Experiments Type
 experiment_type = "Homogen"
 # experiment_type = "Heterogen"
 # experiment_type = "Heterogen_Energy"
 # experiment_type = "Homogen_Energy"
-# ---------
+# ---------Experiments Booleans
 mixed_objective = False # having a tie breaker for energy-aware optimization
-variable_solver_timeout = True
+variable_solver_timeout = False
 list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 3*solver_max_timeout_in_seconds, 5*solver_max_timeout_in_seconds]
 # ------------ Log Directory
-# root_log_directory = f"../Logs/GeneralExpv2/{experiment_type}/{location}" # Most of HotCarbon Results
-root_log_directory = f"../Logs/GeneralExpv3-VariableTimer/{experiment_type}/{location}" # Variable timeout testing
+root_log_directory = f"../Logs/GeneralExpv2/{experiment_type}/{location}" # Most of HotCarbon Results
+if variable_solver_timeout:
+    root_log_directory = f"../Logs/GeneralExpv3-VariableTimer/{experiment_type}/{location}" # Variable timeout testing
 ######## Heterogeneous ########
 if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
     # 5 Servers
@@ -650,7 +655,7 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
 def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day = 1):
     instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 1.5, 2]
-    candidate_makespan_slack_coeff = [1, 1.5]
+    candidate_makespan_slack_coeff = [1]
     if not mixed_objective:
         log_file_path = f"{root_log_directory}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
     else:
@@ -703,7 +708,6 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
                 if i < len(list_solver_max_timeout):
                     index = i
                 curr_timeout = list_solver_max_timeout[index]
-            print("TIMEOUT = ", curr_timeout //  60)
             if experiment_type == "Heterogen_Energy" or experiment_type == "Homogen_Energy":
                 carbon_consumption, energy_consumption, makespan, solver_status, servers_status = energy_aware_scheduling(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch[location],
                                                                             jobs_data = list_jobs_data[instance_num], 
@@ -738,28 +742,28 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
         if (instance_num == 1):
             break
     
-# main(experiment_type = experiment_type)
+main(experiment_type = experiment_type)
 ###########
-run_ver = 7
-candidate_makespan_slack_coeff = [1, 1.5, 2]
-# candidate_makespan_slack_coeff = [1]
-#-----
-start_date = pd.to_datetime("2024-01-01").date()
-total_days = 360
-num_instances_per_day = 3
-num_available_obelix = 8
-inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
-days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
-obelix_start_dates = []
-for i in range(num_available_obelix):
-    start_day = i * days_covered_per_obelix
-    start_dt = start_date + pd.Timedelta(days=start_day)
-    print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
-    obelix_start_dates.append(start_dt)
-main_parallel(experiment_type = experiment_type,
-              instance_num_start = run_ver * inst_num_on_each_obelix,
-              instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
-              version = run_ver,
-              start_date = obelix_start_dates[run_ver],
-              num_instances_per_day = num_instances_per_day,
-              candidate_makespan_slack_coeff = candidate_makespan_slack_coeff)
+# run_ver = 7
+# candidate_makespan_slack_coeff = [1, 1.5, 2]
+# # candidate_makespan_slack_coeff = [1]
+# #-----
+# start_date = pd.to_datetime("2024-01-01").date()
+# total_days = 360
+# num_instances_per_day = 3
+# num_available_obelix = 8
+# inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
+# days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
+# obelix_start_dates = []
+# for i in range(num_available_obelix):
+#     start_day = i * days_covered_per_obelix
+#     start_dt = start_date + pd.Timedelta(days=start_day)
+#     print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
+#     obelix_start_dates.append(start_dt)
+# main_parallel(experiment_type = experiment_type,
+#               instance_num_start = run_ver * inst_num_on_each_obelix,
+#               instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
+#               version = run_ver,
+#               start_date = obelix_start_dates[run_ver],
+#               num_instances_per_day = num_instances_per_day,
+#               candidate_makespan_slack_coeff = candidate_makespan_slack_coeff)
