@@ -500,7 +500,8 @@ Carbon Intensity
 """
 # location = "California"
 # location = "AU-SA"
-location = "CA-ON"
+# location = "CA-ON"
+location = "Germany"
 
 # loading the whole th trace
 carbon_trace = {}
@@ -510,6 +511,8 @@ elif location == "AU-SA":
     df2 = pd.read_csv(f"../CarbonTrace/AU-SA_2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 elif location == "CA-ON":
     df2 = pd.read_csv(f"../CarbonTrace/CA-ON-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
+elif location == "Germany":
+    df2 = pd.read_csv(f"../CarbonTrace/Germany-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
 else:
     raise Exception ("Unknown Location!")
 # df2 = pd.read_csv(f"../CarbonTrace/AU-WA-2024.csv")[['Datetime (UTC)', 'Carbon intensity gCO₂eq/kWh (Life cycle)']] # 2024
