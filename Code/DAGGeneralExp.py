@@ -217,13 +217,23 @@ def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
 
             # Precedence constraints between operations
             if task_id > 0:
-                prev_alts = jobs_data[job_id][task_id - 1]
+                # prev_alts = jobs_data[job_id][task_id - 1]
+                # curr_alts = alternatives
+                # for prev_m_id, _ in prev_alts:
+                #     for curr_m_id, _ in curr_alts:
+                #         prev_end = all_tasks[(job_id, task_id - 1, prev_m_id)][1]
+                #         curr_start = all_tasks[(job_id, task_id, curr_m_id)][0]
+                #         prev_presence = all_tasks[(job_id, task_id - 1, prev_m_id)][3]
+                #         curr_presence = all_tasks[(job_id, task_id, curr_m_id)][3]
+                #         model.Add(curr_start >= prev_end).OnlyEnforceIf([prev_presence, curr_presence])
+                parent_task_id = job_dict[list_job_ids[instance_num][job_id]]["operations_dependency"][str(task_id)]
+                prev_alts = jobs_data[job_id][parent_task_id]
                 curr_alts = alternatives
                 for prev_m_id, _ in prev_alts:
                     for curr_m_id, _ in curr_alts:
-                        prev_end = all_tasks[(job_id, task_id - 1, prev_m_id)][1]
+                        prev_end = all_tasks[(job_id, parent_task_id, prev_m_id)][1]
                         curr_start = all_tasks[(job_id, task_id, curr_m_id)][0]
-                        prev_presence = all_tasks[(job_id, task_id - 1, prev_m_id)][3]
+                        prev_presence = all_tasks[(job_id, parent_task_id, prev_m_id)][3]
                         curr_presence = all_tasks[(job_id, task_id, curr_m_id)][3]
                         model.Add(curr_start >= prev_end).OnlyEnforceIf([prev_presence, curr_presence])
             # first task's start time must be after arrival epoch
