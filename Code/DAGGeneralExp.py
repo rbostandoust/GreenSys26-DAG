@@ -575,8 +575,8 @@ experiment_type = "Heterogen"
 # experiment_type = "Homogen_Energy"
 # ---------Experiments Booleans
 mixed_objective = False # having a tie breaker for energy-aware optimization
-variable_solver_timeout = False
-list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 3*solver_max_timeout_in_seconds, 5*solver_max_timeout_in_seconds]
+variable_solver_timeout = True
+list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 1*solver_max_timeout_in_seconds, 1*solver_max_timeout_in_seconds]
 # ------------ Log Directory
 root_log_directory = f"../Logs/GeneralExpv2-DAG/{experiment_type}/{location}" # Most of HotCarbon Results
 if variable_solver_timeout:
@@ -791,7 +791,7 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
 ###########
 run_ver = 7
 candidate_makespan_slack_coeff = [1, 1.5, 2]
-# candidate_makespan_slack_coeff = [1]
+candidate_makespan_slack_coeff = [1, 1.2, 1.5]
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
