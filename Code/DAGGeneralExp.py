@@ -93,7 +93,7 @@ def generate_instance_carbon_intensity_trace(selected_date, location, windows_si
             carbon_trace_spec_day_per_epoch[location].append(int(round(intensity)))
     return carbon_trace_spec_day_per_epoch
     
-def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon, solver_max_timeout_in_seconds):
+def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_machines, jobs_arrival_epoch, initial_horizon, solver_max_timeout_in_seconds, instance_num):
     model = cp_model.CpModel()
 
     all_tasks = {}
@@ -121,13 +121,23 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
 
             # Precedence constraints between operations
             if task_id > 0:
-                prev_alts = jobs_data[job_id][task_id - 1]
+                # prev_alts = jobs_data[job_id][task_id - 1]
+                # curr_alts = alternatives
+                # for prev_m_id, _ in prev_alts:
+                #     for curr_m_id, _ in curr_alts:
+                #         prev_end = all_tasks[(job_id, task_id - 1, prev_m_id)][1]
+                #         curr_start = all_tasks[(job_id, task_id, curr_m_id)][0]
+                #         prev_presence = all_tasks[(job_id, task_id - 1, prev_m_id)][3]
+                #         curr_presence = all_tasks[(job_id, task_id, curr_m_id)][3]
+                #         model.Add(curr_start >= prev_end).OnlyEnforceIf([prev_presence, curr_presence])
+                parent_task_id = job_dict[list_job_ids[instance_num][job_id]]["operations_dependency"][str(task_id)]
+                prev_alts = jobs_data[job_id][parent_task_id]
                 curr_alts = alternatives
                 for prev_m_id, _ in prev_alts:
                     for curr_m_id, _ in curr_alts:
-                        prev_end = all_tasks[(job_id, task_id - 1, prev_m_id)][1]
+                        prev_end = all_tasks[(job_id, parent_task_id, prev_m_id)][1]
                         curr_start = all_tasks[(job_id, task_id, curr_m_id)][0]
-                        prev_presence = all_tasks[(job_id, task_id - 1, prev_m_id)][3]
+                        prev_presence = all_tasks[(job_id, parent_task_id, prev_m_id)][3]
                         curr_presence = all_tasks[(job_id, task_id, curr_m_id)][3]
                         model.Add(curr_start >= prev_end).OnlyEnforceIf([prev_presence, curr_presence])
             # first task's start time must be after arrival time
@@ -163,7 +173,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
         # print(f'Minimized makespan: {solver.Value(makespan)}')
         for (j, t, m), (start, end, interval, presence) in all_tasks.items():
             if solver.Value(presence):
-                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
                 total_energy_consumption += (solver.Value(end) - solver.Value(start)) * power[m] * (epoch_in_minutes / 60)
                 if f"Server{m}" not in machines_status.keys():
@@ -179,7 +189,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, None, "TimerInterrupt", _
 
-def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, jobs_arrival_epoch, max_allowed_makespan, solver_max_timeout_in_seconds):
+def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, jobs_arrival_epoch, max_allowed_makespan, solver_max_timeout_in_seconds, instance_num):
     model = cp_model.CpModel()
     all_tasks = {}
     all_machines = [[] for _ in range(num_machines)]
@@ -318,7 +328,7 @@ def energy_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
         print("❓ Solver stopped (possibly due to timeout) with status:", status)
         return None, None, None, "TimerInterrupt", _
 
-def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, jobs_arrival_epoch, max_allowed_makespan, solver_max_timeout_in_seconds):
+def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, jobs_arrival_epoch, max_allowed_makespan, solver_max_timeout_in_seconds, instance_num):
     model = cp_model.CpModel()
     all_tasks = {}
     all_machines = [[] for _ in range(num_machines)]
@@ -435,7 +445,7 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
             print(f"✅ Solution is also optimal!")
         for (j, t, m), (start, end, _, presence) in all_tasks.items():
             if solver.Value(presence):
-                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
                 total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
@@ -463,7 +473,8 @@ def run_objective_aware_task(carbon_trace_spec_day_per_epoch, selected_date, ins
             jobs_id=list_job_ids[instance_num],
             jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
             max_allowed_makespan=max_allowed_makespan,
-            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
+            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds,
+            instance_num = instance_num
         )
     else:
         carbon_consumption, energy_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(
@@ -472,7 +483,8 @@ def run_objective_aware_task(carbon_trace_spec_day_per_epoch, selected_date, ins
             jobs_id=list_job_ids[instance_num],
             jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
             max_allowed_makespan=max_allowed_makespan,
-            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
+            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds,
+            instance_num = instance_num
         )
 
     if solver_status == "Success":
@@ -499,11 +511,11 @@ solver_max_timeout_in_seconds = 1 * 60
 Carbon Intensity
 """
 # location = "California"
-# location = "AU-SA"
+location = "AU-SA"
 # location = "CA-ON"
 # location = "Germany"
 # location = "Texas"
-location = "SouthKorea"
+# location = "SouthKorea"
 
 # loading the whole th trace
 carbon_trace = {}
@@ -532,9 +544,9 @@ carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
 Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
-num_jobs = 10 # per instance
+num_jobs = 3 # per instance
 num_machines = 5 # per instance
-num_operations_per_job = 3
+num_operations_per_job = 4
 mean_duration_per_op_in_epoch = 7
 # ---------Experiments Type
 experiment_type = "Homogen"
@@ -546,9 +558,9 @@ mixed_objective = False # having a tie breaker for energy-aware optimization
 variable_solver_timeout = False
 list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 3*solver_max_timeout_in_seconds, 5*solver_max_timeout_in_seconds]
 # ------------ Log Directory
-root_log_directory = f"../Logs/GeneralExpv2/{experiment_type}/{location}" # Most of HotCarbon Results
+root_log_directory = f"../Logs/GeneralExpv2-DAG/{experiment_type}/{location}" # Most of HotCarbon Results
 if variable_solver_timeout:
-    root_log_directory = f"../Logs/GeneralExpv3-VariableTimer/{experiment_type}/{location}" # Variable timeout testing
+    root_log_directory = f"../Logs/GeneralExpv3-DAG-VariableTimer/{experiment_type}/{location}" # Variable timeout testing
 ######## Heterogeneous ########
 if experiment_type == "Heterogen" or experiment_type == "Heterogen_Energy":
     # 5 Servers
@@ -575,7 +587,7 @@ else:
     raise Exception ("Unknown Experiment Type!")
 # list_jobs_arrival_epoch = [[0 for _ in range(num_jobs)] for _ in range(num_instances)] # ever job arrives hour0 of the day
 list_jobs_arrival_epoch = generate_multiple_job_arrival_epochs(start_hour=0, end_hour=24, epoch_in_minutes=epoch_in_minutes, sample_num=num_instances, num_jobs=num_jobs, seed=42)
-with open(f"../Data/JobPool/JobPool_{num_operations_per_job}Ops_MeanOpDur={mean_duration_per_op_in_epoch}_Epoch={epoch_in_minutes}.json", "r") as f:
+with open(f"../Data/JobPool/JobPool_{num_operations_per_job}Ops_MeanOpDur={mean_duration_per_op_in_epoch}_Epoch={epoch_in_minutes}_DAG.json", "r") as f:
     job_dict = json.load(f)
 list_jobs_data, list_job_ids = generate_multiple_job_schedules(job_dict, num_jobs = num_jobs, num_machines = num_machines, sample_num = num_instances, seed = 42)
 
@@ -609,7 +621,8 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
             num_machines=num_machines,
             jobs_arrival_epoch=list_jobs_arrival_epoch[instance_num],
             initial_horizon=initial_horizon,
-            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds
+            solver_max_timeout_in_seconds=solver_max_timeout_in_seconds,
+            instance_num = instance_num
         )
 
         if solver_status != "Success":
@@ -664,7 +677,7 @@ def main_parallel(experiment_type, instance_num_start, instance_num_end, version
 def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_instances_per_day = 1):
     instance_num_start, instance_num_end = 0, num_instances
     candidate_makespan_slack_coeff = [1, 1.5, 2]
-    candidate_makespan_slack_coeff = [1]
+    candidate_makespan_slack_coeff = []
     if not mixed_objective:
         log_file_path = f"{root_log_directory}/{num_jobs}J_{num_machines}S_{num_operations_per_job}O_MeanOp={mean_duration_per_op_in_epoch}.csv"
     else:
@@ -685,7 +698,8 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
                                                                     num_machines = num_machines,
                                                                     jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num], 
                                                                     initial_horizon = initial_horizon,
-                                                                    solver_max_timeout_in_seconds = solver_max_timeout_in_seconds)
+                                                                    solver_max_timeout_in_seconds = solver_max_timeout_in_seconds,
+                                                                    instance_num = instance_num)
         if solver_status != "Success":
             continue # Do not run carbon-aware scheduling
         log_dict_list = []
@@ -723,14 +737,16 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
                                                                             jobs_id = list_job_ids[instance_num],
                                                                             jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
                                                                             max_allowed_makespan = max_allowed_makespan,
-                                                                            solver_max_timeout_in_seconds = curr_timeout)
+                                                                            solver_max_timeout_in_seconds = curr_timeout,
+                                                                            instance_num = instance_num)
             else:    
                 carbon_consumption, energy_consumption, makespan, solver_status, servers_status = carbon_aware_scheduling(carbon_trace_spec_day_per_epoch = carbon_trace_spec_day_per_epoch[location],
                                                                             jobs_data = list_jobs_data[instance_num], 
                                                                             jobs_id = list_job_ids[instance_num],
                                                                             jobs_arrival_epoch = list_jobs_arrival_epoch[instance_num],
                                                                             max_allowed_makespan = max_allowed_makespan,
-                                                                            solver_max_timeout_in_seconds = curr_timeout)
+                                                                            solver_max_timeout_in_seconds = curr_timeout,
+                                                                            instance_num = instance_num)
             if solver_status == "Success":
                 objective_aware_log_dict = {'ElapsedTime': str(datetime.now() - start_time).split(".")[0], "Datetime": selected_date,
                             'Instance': instance_num, 'IsCarbonAware': True,
@@ -748,7 +764,7 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
                 log_dict_list.append(objective_aware_log_dict)
             # break
         append_to_csv(data_list=log_dict_list, file_path=log_file_path)
-        if (instance_num == 1):
+        if (instance_num == 5):
             break
     
 main(experiment_type = experiment_type)
