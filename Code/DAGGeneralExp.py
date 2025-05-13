@@ -565,7 +565,7 @@ Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
 num_jobs = 10 # per instance
-num_machines = 2 # per instance
+num_machines = 10 # per instance
 num_operations_per_job = 4
 mean_duration_per_op_in_epoch = 7
 # ---------Experiments Type
@@ -576,7 +576,7 @@ experiment_type = "Homogen"
 # ---------Experiments Booleans
 mixed_objective = False # having a tie breaker for energy-aware optimization
 variable_solver_timeout = False
-list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 1*solver_max_timeout_in_seconds, 1*solver_max_timeout_in_seconds]
+list_solver_max_timeout = [1*solver_max_timeout_in_seconds, 3*solver_max_timeout_in_seconds, 5*solver_max_timeout_in_seconds]
 # ------------ Log Directory
 root_log_directory = f"../Logs/GeneralExpv2-DAG/{experiment_type}/{location}" # Most of HotCarbon Results
 if variable_solver_timeout:
@@ -789,14 +789,14 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     
 # main(experiment_type = experiment_type)
 ###########
-run_ver = 7
-candidate_makespan_slack_coeff = [1, 1.2, 1.5, 2]
+run_ver = 1
+# candidate_makespan_slack_coeff = [1, 1.5, 2]
 candidate_makespan_slack_coeff = [1]
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
 num_instances_per_day = 3
-num_available_obelix = 8
+num_available_obelix = 2
 inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
 days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
 obelix_start_dates = []
