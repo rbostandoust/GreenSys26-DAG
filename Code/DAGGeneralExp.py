@@ -173,7 +173,7 @@ def makespan_minimizer(carbon_trace_spec_day_per_epoch, jobs_data, jobs_id, num_
         # print(f'Minimized makespan: {solver.Value(makespan)}')
         for (j, t, m), (start, end, interval, presence) in all_tasks.items():
             if solver.Value(presence):
-                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
                 total_energy_consumption += (solver.Value(end) - solver.Value(start)) * power[m] * (epoch_in_minutes / 60)
                 if f"Server{m}" not in machines_status.keys():
@@ -465,7 +465,7 @@ def carbon_aware_scheduling(carbon_trace_spec_day_per_epoch, jobs_data,jobs_id, 
             print(f"✅ Solution is also optimal!")
         for (j, t, m), (start, end, _, presence) in all_tasks.items():
             if solver.Value(presence):
-                print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
+                # print(f'Job {j}, Task {t} on Machine {m} → Start: {solver.Value(start)}, End: {solver.Value(end)}')
                 if f"Server{m}" not in machines_status.keys():
                     machines_status[f"Server{m}"] = []
                 total_carbon_consumption += sum(carbon_trace_spec_day_per_epoch[solver.Value(start):solver.Value(end)]) * power[m] * (epoch_in_minutes / 60)
@@ -564,7 +564,7 @@ carbon_trace[location]['datetime'] = carbon_trace[location]['datetime'].apply(
 Sampling from the job pool and determining arrival epochs
 """
 num_instances = 2000
-num_jobs = 3 # per instance
+num_jobs = 10 # per instance
 num_machines = 5 # per instance
 num_operations_per_job = 4
 mean_duration_per_op_in_epoch = 7
@@ -787,28 +787,28 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
         if (instance_num == 2):
             break
     
-main(experiment_type = experiment_type)
+# main(experiment_type = experiment_type)
 ###########
-# run_ver = 7
-# # candidate_makespan_slack_coeff = [1, 1.5, 2]
+run_ver = 7
+candidate_makespan_slack_coeff = [1, 1.5, 2]
 # candidate_makespan_slack_coeff = [1]
-# #-----
-# start_date = pd.to_datetime("2024-01-01").date()
-# total_days = 360
-# num_instances_per_day = 3
-# num_available_obelix = 8
-# inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
-# days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
-# obelix_start_dates = []
-# for i in range(num_available_obelix):
-#     start_day = i * days_covered_per_obelix
-#     start_dt = start_date + pd.Timedelta(days=start_day)
-#     print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
-#     obelix_start_dates.append(start_dt)
-# main_parallel(experiment_type = experiment_type,
-#               instance_num_start = run_ver * inst_num_on_each_obelix,
-#               instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
-#               version = run_ver,
-#               start_date = obelix_start_dates[run_ver],
-#               num_instances_per_day = num_instances_per_day,
-#               candidate_makespan_slack_coeff = candidate_makespan_slack_coeff)
+#-----
+start_date = pd.to_datetime("2024-01-01").date()
+total_days = 360
+num_instances_per_day = 3
+num_available_obelix = 8
+inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
+days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
+obelix_start_dates = []
+for i in range(num_available_obelix):
+    start_day = i * days_covered_per_obelix
+    start_dt = start_date + pd.Timedelta(days=start_day)
+    print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
+    obelix_start_dates.append(start_dt)
+main_parallel(experiment_type = experiment_type,
+              instance_num_start = run_ver * inst_num_on_each_obelix,
+              instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
+              version = run_ver,
+              start_date = obelix_start_dates[run_ver],
+              num_instances_per_day = num_instances_per_day,
+              candidate_makespan_slack_coeff = candidate_makespan_slack_coeff)
