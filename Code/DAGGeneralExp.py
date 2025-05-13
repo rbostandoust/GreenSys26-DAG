@@ -569,8 +569,8 @@ num_machines = 5 # per instance
 num_operations_per_job = 4
 mean_duration_per_op_in_epoch = 7
 # ---------Experiments Type
-experiment_type = "Homogen"
-# experiment_type = "Heterogen"
+# experiment_type = "Homogen"
+experiment_type = "Heterogen"
 # experiment_type = "Heterogen_Energy"
 # experiment_type = "Homogen_Energy"
 # ---------Experiments Booleans
