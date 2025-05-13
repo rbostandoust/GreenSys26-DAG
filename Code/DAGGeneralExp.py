@@ -751,28 +751,28 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
         if (instance_num == 1):
             break
     
-# main(experiment_type = experiment_type)
+main(experiment_type = experiment_type)
 ###########
-run_ver = 7
-# candidate_makespan_slack_coeff = [1, 1.5, 2]
-candidate_makespan_slack_coeff = [1]
-#-----
-start_date = pd.to_datetime("2024-01-01").date()
-total_days = 360
-num_instances_per_day = 3
-num_available_obelix = 8
-inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
-days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
-obelix_start_dates = []
-for i in range(num_available_obelix):
-    start_day = i * days_covered_per_obelix
-    start_dt = start_date + pd.Timedelta(days=start_day)
-    print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
-    obelix_start_dates.append(start_dt)
-main_parallel(experiment_type = experiment_type,
-              instance_num_start = run_ver * inst_num_on_each_obelix,
-              instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
-              version = run_ver,
-              start_date = obelix_start_dates[run_ver],
-              num_instances_per_day = num_instances_per_day,
-              candidate_makespan_slack_coeff = candidate_makespan_slack_coeff)
+# run_ver = 7
+# # candidate_makespan_slack_coeff = [1, 1.5, 2]
+# candidate_makespan_slack_coeff = [1]
+# #-----
+# start_date = pd.to_datetime("2024-01-01").date()
+# total_days = 360
+# num_instances_per_day = 3
+# num_available_obelix = 8
+# inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
+# days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
+# obelix_start_dates = []
+# for i in range(num_available_obelix):
+#     start_day = i * days_covered_per_obelix
+#     start_dt = start_date + pd.Timedelta(days=start_day)
+#     print(f"Machine {i}: {inst_num_on_each_obelix} instances, Start Date: {start_dt}")
+#     obelix_start_dates.append(start_dt)
+# main_parallel(experiment_type = experiment_type,
+#               instance_num_start = run_ver * inst_num_on_each_obelix,
+#               instance_num_end = (run_ver+1) * inst_num_on_each_obelix,
+#               version = run_ver,
+#               start_date = obelix_start_dates[run_ver],
+#               num_instances_per_day = num_instances_per_day,
+#               candidate_makespan_slack_coeff = candidate_makespan_slack_coeff)
