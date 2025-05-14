@@ -531,10 +531,10 @@ solver_max_timeout_in_seconds = 1 * 60
 Carbon Intensity
 """
 # location = "California"
-location = "AU-SA"
+# location = "AU-SA"
 # location = "CA-ON"
 # location = "Germany"
-# location = "Texas"
+location = "Texas"
 # location = "SouthKorea"
 
 # loading the whole th trace
@@ -566,11 +566,11 @@ Sampling from the job pool and determining arrival epochs
 num_instances = 2000
 num_jobs = 10 # per instance
 num_machines = 5 # per instance
-num_operations_per_job = 3
+num_operations_per_job = 4
 mean_duration_per_op_in_epoch = 7
 # ---------Experiments Type
-experiment_type = "Homogen"
-# experiment_type = "Heterogen"
+# experiment_type = "Homogen"
+experiment_type = "Heterogen"
 # experiment_type = "Heterogen_Energy"
 # experiment_type = "Homogen_Energy"
 # ---------Experiments Booleans
@@ -789,14 +789,14 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     
 # main(experiment_type = experiment_type)
 ###########
-run_ver = 3
+run_ver = 0
 # candidate_makespan_slack_coeff = [1, 1.5, 2]
 candidate_makespan_slack_coeff = [1]
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
 num_instances_per_day = 3
-num_available_obelix = 4
+num_available_obelix = 2
 inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
 days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
 obelix_start_dates = []
