@@ -1,0 +1,4 @@
+SlackCoeff,CarbonSavings(%),EnergySavings(%),UtilizationRatio,AvgOptMakeSpan
+1.0,24.65262962962963,0.0,47.15,117.73
+1.5,44.687296296296296,0.0,31.39,117.73
+2.0,53.944175925925926,0.0,23.57,117.73
