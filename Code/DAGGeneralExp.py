@@ -789,14 +789,14 @@ def main(experiment_type, start_date = pd.to_datetime("2024-01-01").date(), num_
     
 # main(experiment_type = experiment_type)
 ###########
-run_ver = 0
+run_ver = 7
 # candidate_makespan_slack_coeff = [1, 1.5, 2]
 candidate_makespan_slack_coeff = [1]
 #-----
 start_date = pd.to_datetime("2024-01-01").date()
 total_days = 360
 num_instances_per_day = 3
-num_available_obelix = 2
+num_available_obelix = 8
 inst_num_on_each_obelix = (num_instances_per_day * total_days) // num_available_obelix
 days_covered_per_obelix = inst_num_on_each_obelix // num_instances_per_day
 obelix_start_dates = []
